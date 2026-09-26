@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server';import {getSession} from '@/lib/auth';import db from '@/lib/db';
+export async function GET(){const s=await getSession();if(!s)return NextResponse.json({error:'Unauthorized'},{status:401});const u=db.prepare('SELECT id,full_name,surname,email,grade,class_name,parent_phone,address,pfp_url,role,status,membership_type,board_position,lms_tour_seen FROM users WHERE id=?').get(s.userId) as any;return NextResponse.json({user:u,session:s});}

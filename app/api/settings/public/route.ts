@@ -1,0 +1,1 @@
+import {NextResponse} from 'next/server';import {getSettings} from '@/lib/data';export async function GET(){const rows=getSettings() as any[];return NextResponse.json(Object.fromEntries(rows.map(r=>[r.key,r.value])))}

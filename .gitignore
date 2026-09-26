@@ -1,0 +1,8 @@
+node_modules
+.next
+club.db
+club.db-shm
+club.db-wal
+.env.local
+public/uploads/*
+!public/uploads/.gitkeep

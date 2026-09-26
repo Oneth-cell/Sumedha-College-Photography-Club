@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server';import {requireUser} from '@/lib/auth';import db from '@/lib/db';
+export async function POST(req:Request){try{const s=await requireUser();const {tour}=await req.json();if(tour==='lms')db.prepare('UPDATE users SET lms_tour_seen=1,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(s.userId);return NextResponse.json({ok:true});}catch{return NextResponse.json({error:'Unauthorized'},{status:401})}}
