@@ -1,3 +1,4 @@
+
 # Sumedha College Photography Club — Full Portal + Admin CRM
 
 A full-stack Next.js portal for the Sumedha College Photography Club.
@@ -52,3 +53,5 @@ This starter stores uploads in `public/uploads`. For a real 5 GB production depl
 ## Production security
 
 Set a long random `JWT_SECRET`, HTTPS, SMTP, backups, antivirus/content scanning, object storage, rate limiting and managed Postgres before opening the portal publicly. Never use the seed password in production.
+
+
