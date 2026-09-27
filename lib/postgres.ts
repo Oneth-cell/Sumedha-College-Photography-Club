@@ -1,9 +1,9 @@
-import { Pool, QueryResultRow } from 'pg';
+import { Pool, QueryResultRow } from "pg";
 
 const connectionString = process.env.SUPABASE_DB_URL;
 
 if (!connectionString) {
-  throw new Error('SUPABASE_DB_URL is missing');
+  throw new Error("SUPABASE_DB_URL is missing");
 }
 
 declare global {
@@ -18,15 +18,17 @@ const pool =
     ssl: {
       rejectUnauthorized: false,
     },
-    max: 3,
+    max: 2,
     min: 0,
-    idleTimeoutMillis: 10000,
+    idleTimeoutMillis: 5000,
     connectionTimeoutMillis: 10000,
   });
 
 global.postgresPool = pool;
 
-export async function query<T extends QueryResultRow = QueryResultRow>(
+export async function query<
+  T extends QueryResultRow = QueryResultRow
+>(
   text: string,
   values: unknown[] = []
 ) {
