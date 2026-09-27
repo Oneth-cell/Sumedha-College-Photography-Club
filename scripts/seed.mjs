@@ -47,7 +47,7 @@ const settings = {
   club_trailer_url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
   club_trailer_poster: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85',
   contact_email: email,
-  copyright_text: '© 2026 Oneth Wockramaraachchi. All rights reserved.'
+  copyright_text: '© 2026 Oneth Wickramaraachchi. All rights reserved.'
 };
 for (const [k, v] of Object.entries(settings)) {
   db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, v);
@@ -55,7 +55,7 @@ for (const [k, v] of Object.entries(settings)) {
 
 const board = [
   ['President', 'Senula Thiwen', 1],
-  ['Vice President', 'Oneth Wathmira', 2],
+  ['Vice President', 'Oneth Wickramaarchchi', 2],
   ['Secretary', 'Deneth Akarsha', 3],
   ['Treasurer', 'Abeeth Senitha', 4],
   ['Chief Photo Editor', 'Chanithu Hansith', 5],
