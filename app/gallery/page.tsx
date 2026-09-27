@@ -1,4 +1,55 @@
-import {getPublicMedia,getMediaComments} from '@/lib/data';
+export const dynamic = 'force-dynamic';
+
+import { getPublicMedia, getMediaComments } from '@/lib/data';
 import Reveal from '@/components/Reveal';
 import GalleryCard from '@/components/GalleryCard';
-export default async function GalleryPage(){const items=(await getPublicMedia()).map((x:any)=>({...x,comments:getMediaComments(x.id)}));return <main className="page"><div className="container"><Reveal><div className="section-head"><div><div className="kicker">Public gallery</div><h2>Frames from<br/>the club.</h2></div><p>Approved student photographs and films. Guests can view the work, ratings and comments; signed-in members can like, rate and comment.</p></div></Reveal>{items.length?<div className="gallery-grid">{items.map((item:any,i:number)=><GalleryCard item={item} index={i} key={item.id}/>)}</div>:<div className="notice">No approved gallery items yet. The first published student submissions will appear here.</div>}</div></main>}
+
+export default async function GalleryPage() {
+  const items = (await getPublicMedia()).map((x: any) => ({
+    ...x,
+    comments: getMediaComments(x.id),
+  }));
+
+  return (
+    <main className="page">
+      <div className="container">
+        <Reveal>
+          <div className="section-head">
+            <div>
+              <div className="kicker">Public gallery</div>
+
+              <h2>
+                Frames from
+                <br />
+                the club.
+              </h2>
+            </div>
+
+            <p>
+              Approved student photographs and films. Guests can view the
+              work, ratings and comments; signed-in members can like, rate
+              and comment.
+            </p>
+          </div>
+        </Reveal>
+
+        {items.length ? (
+          <div className="gallery-grid">
+            {items.map((item: any, i: number) => (
+              <GalleryCard
+                item={item}
+                index={i}
+                key={item.id}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="notice">
+            No approved gallery items yet. The first published student
+            submissions will appear here.
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
