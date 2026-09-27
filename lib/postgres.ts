@@ -18,12 +18,13 @@ const pool =
     ssl: {
       rejectUnauthorized: false,
     },
-    max: 5,
+    max: 3,
+    min: 0,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000,
   });
 
-if (process.env.NODE_ENV !== 'production') {
-  global.postgresPool = pool;
-}
+global.postgresPool = pool;
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
