@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-import db from "@/lib/db";
+import { query } from "@/lib/postgres";
 import { sendPasswordResetEmail } from "@/lib/mailer";
 
 export async function POST(req: Request) {
@@ -22,22 +22,6 @@ export async function POST(req: Request) {
     }
 
     /* ======================================================
-       RESET CODE TABLE
-       ====================================================== */
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS password_resets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        email TEXT NOT NULL,
-        code_hash TEXT NOT NULL,
-        expires_at INTEGER NOT NULL,
-        used INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    /* ======================================================
        REQUEST RESET CODE
        ====================================================== */
 
@@ -47,21 +31,27 @@ export async function POST(req: Request) {
        * Your users table does not have a "name" column.
        * Only select columns that exist.
        */
-      const user = db
-        .prepare(
+      const userResult = await query<{ id: number; email: string }>(
           `
+          SELECT id, email
+          FROM users
+          WHERE lower(email) = lower(
           SELECT id, email
           FROM users
           WHERE lower(email) = ?
           LIMIT 1
-          `
-        )
-        .get(email) as
-        | {
-            id: number;
-            email: string;
-          }
-        | undefined;
+          )
+          LIMIT 1
+          `,
+          [email]
+        );
+
+        const user = userResult.rows[0] as
+          | {
+              id: number;
+              email: string;
+            }
+          | undefined;
 
       /*
        * Don't reveal whether an email exists.
@@ -87,17 +77,18 @@ export async function POST(req: Request) {
         Date.now() + 10 * 60 * 1000;
 
       /* Invalidate old codes */
-      db.prepare(
+      await query(
         `
         UPDATE password_resets
         SET used = 1
-        WHERE user_id = ?
+        WHERE user_id = $1
         AND used = 0
-        `
-      ).run(user.id);
+        `,
+        [user.id]
+      );
 
       /* Store new reset code */
-      db.prepare(
+      await query(
         `
         INSERT INTO password_resets
         (
@@ -107,13 +98,14 @@ export async function POST(req: Request) {
           expires_at,
           used
         )
-        VALUES (?, ?, ?, ?, 0)
-        `
-      ).run(
-        user.id,
-        user.email,
-        codeHash,
-        expiresAt
+        VALUES ($1, $2, $3, $4, 0)
+        `,
+        [
+          user.id,
+          user.email,
+          codeHash,
+          expiresAt
+        ]
       );
 
       /*
@@ -153,18 +145,26 @@ export async function POST(req: Request) {
         );
       }
 
-      const reset = db
-        .prepare(
-          `
-          SELECT *
-          FROM password_resets
-          WHERE lower(email) = ?
-          AND used = 0
-          ORDER BY id DESC
-          LIMIT 1
-          `
-        )
-        .get(email) as
+      const resetResult = await query<{
+        id: number;
+        user_id: number;
+        email: string;
+        code_hash: string;
+        expires_at: number;
+        used: number;
+      }>(
+        `
+        SELECT *
+        FROM password_resets
+        WHERE lower(email) = lower($1)
+        AND used = 0
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [email]
+      );
+
+      const reset = resetResult.rows[0] as
         | {
             id: number;
             user_id: number;
@@ -187,13 +187,14 @@ export async function POST(req: Request) {
 
       /* Check expiry */
       if (Date.now() > Number(reset.expires_at)) {
-        db.prepare(
+        await query(
           `
           UPDATE password_resets
           SET used = 1
-          WHERE id = ?
-          `
-        ).run(reset.id);
+          WHERE id = $1
+          `,
+          [reset.id]
+        );
 
         return NextResponse.json(
           {
@@ -253,18 +254,26 @@ export async function POST(req: Request) {
         );
       }
 
-      const reset = db
-        .prepare(
-          `
-          SELECT *
-          FROM password_resets
-          WHERE lower(email) = ?
-          AND used = 0
-          ORDER BY id DESC
-          LIMIT 1
-          `
-        )
-        .get(email) as
+      const resetResult = await query<{
+        id: number;
+        user_id: number;
+        email: string;
+        code_hash: string;
+        expires_at: number;
+        used: number;
+      }>(
+        `
+        SELECT *
+        FROM password_resets
+        WHERE lower(email) = lower($1)
+        AND used = 0
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [email]
+      );
+
+      const reset = resetResult.rows[0] as
         | {
             id: number;
             user_id: number;
@@ -287,13 +296,14 @@ export async function POST(req: Request) {
 
       /* Check expiry */
       if (Date.now() > Number(reset.expires_at)) {
-        db.prepare(
+        await query(
           `
           UPDATE password_resets
           SET used = 1
-          WHERE id = ?
-          `
-        ).run(reset.id);
+          WHERE id = $1
+          `,
+          [reset.id]
+        );
 
         return NextResponse.json(
           {
@@ -326,26 +336,29 @@ export async function POST(req: Request) {
       );
 
       /* Update user's password */
-      db.prepare(
+      await query(
         `
         UPDATE users
-        SET password_hash = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-        `
-      ).run(
-        passwordHash,
-        reset.user_id
+        SET
+          password_hash = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        `,
+        [
+          passwordHash,
+          reset.user_id
+        ]
       );
 
       /* Consume reset code */
-      db.prepare(
+      await query(
         `
         UPDATE password_resets
         SET used = 1
-        WHERE user_id = ?
-        `
-      ).run(reset.user_id);
+        WHERE user_id = $1
+        `,
+        [reset.user_id]
+      );
 
       return NextResponse.json({
         ok: true,

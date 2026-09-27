@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import db from '@/lib/db';
+import { query } from '@/lib/postgres';
 import { sendEmail } from '@/lib/mailer';
 
 function escapeHtml(value: unknown): string {
@@ -133,9 +133,17 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------
     // Check existing account
     // ------------------------------------------------------------
-    const existing = db
-      .prepare('SELECT status FROM users WHERE email=?')
-      .get(email) as { status?: string } | undefined;
+    const existingResult = await query<{ status: string }>(
+      `
+      SELECT status
+      FROM users
+      WHERE email = $1
+      LIMIT 1
+      `,
+      [email]
+    );
+
+    const existing = existingResult.rows[0];
 
     if (existing) {
       return NextResponse.json(
@@ -157,36 +165,35 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------
     // Create pending user
     // ------------------------------------------------------------
-    const info = db
-      .prepare(
-        `
-        INSERT INTO users(
-          full_name,
-          surname,
-          email,
-          student_id,
-          grade,
-          class_name,
-          parent_phone,
-          address,
-          password_hash,
-          status
-        )
-        VALUES(
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          'pending'
-        )
-        `
+    const insertResult = await query<{ id: number }>(
+      `
+      INSERT INTO users(
+        full_name,
+        surname,
+        email,
+        student_id,
+        grade,
+        class_name,
+        parent_phone,
+        address,
+        password_hash,
+        status
       )
-      .run(
+      VALUES(
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        'pending'
+      )
+      RETURNING id
+      `,
+      [
         data.fullName,
         data.surname,
         email,
@@ -195,10 +202,11 @@ export async function POST(req: Request) {
         data.className,
         data.parentPhone,
         data.address,
-        passwordHash
-      );
+        passwordHash,
+      ]
+    );
 
-    const userId = Number(info.lastInsertRowid);
+    const userId = Number(insertResult.rows[0].id);
 
     // ------------------------------------------------------------
     // Save profile picture
@@ -235,14 +243,19 @@ export async function POST(req: Request) {
         Buffer.from(await pfp.arrayBuffer())
       );
 
-      db.prepare(
+      await query(
         `
         UPDATE users
-        SET pfp_url=?,
-            updated_at=CURRENT_TIMESTAMP
-        WHERE id=?
-        `
-      ).run(`/uploads/profiles/${filename}`, userId);
+        SET
+          pfp_url = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        `,
+        [
+          `/uploads/profiles/${filename}`,
+          userId,
+        ]
+      );
 
       profilePictureUploaded = true;
     }

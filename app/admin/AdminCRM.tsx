@@ -32,117 +32,210 @@ type Tab =
   | 'board'
   | 'settings';
 
+/* =========================================================
+   API HELPER
+========================================================= */
+
+async function api(
+  url: string,
+  opts: RequestInit = {}
+) {
+  const r = await fetch(url, {
+    ...opts,
+    credentials: 'include'
+  });
+
+  const contentType =
+    r.headers.get('content-type') || '';
+
+  let d: any = {};
+
+  if (
+    contentType.includes(
+      'application/json'
+    )
+  ) {
+    d =
+      await r.json().catch(
+        () => ({})
+      );
+  } else {
+    const text =
+      await r.text().catch(
+        () => ''
+      );
+
+    if (!r.ok) {
+      throw new Error(
+        text ||
+          `Request failed (${r.status})`
+      );
+    }
+
+    d = {};
+  }
+
+  if (!r.ok) {
+    throw new Error(
+      d?.error ||
+        `Request failed (${r.status})`
+    );
+  }
+
+  return d;
+}
+
 export default function AdminCRM() {
-  const [tab, setTab] = useState<Tab>('overview');
-  const [msg, setMsg] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>({});
+  const [tab, setTab] =
+    useState<Tab>('overview');
+
+  const [msg, setMsg] =
+    useState('');
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [data, setData] =
+    useState<any>({});
 
   /* =========================
      TASK
   ========================= */
 
-  const [task, setTask] = useState({
-    title: '',
-    description: '',
-    dueDate: '',
-    uploadType: 'photo'
-  });
+  const [task, setTask] =
+    useState({
+      title: '',
+      description: '',
+      dueDate: '',
+      uploadType: 'photo'
+    });
 
   /* =========================
      MEETING
   ========================= */
 
-  const [meeting, setMeeting] = useState({
-    title: '',
-    startTime: '',
-    zoomUrl: '',
-    agenda: ''
-  });
+  const [meeting, setMeeting] =
+    useState({
+      title: '',
+      startTime: '',
+      zoomUrl: '',
+      agenda: ''
+    });
 
   /* =========================
      EVENT
   ========================= */
 
-  const [event, setEvent] = useState({
-    title: '',
-    date: '',
-    location: '',
-    description: '',
-    trailerUrl: '',
-    aftermovieUrl: '',
-    albumUrl: '',
-    coverUrl: ''
-  });
+  const [event, setEvent] =
+    useState({
+      title: '',
+      date: '',
+      location: '',
+      description: '',
+      trailerUrl: '',
+      aftermovieUrl: '',
+      albumUrl: '',
+      coverUrl: ''
+    });
 
   /* =========================
      ANNOUNCEMENT
   ========================= */
 
-  const [announcement, setAnnouncement] = useState({
-    title: '',
-    body: ''
-  });
+  const [announcement, setAnnouncement] =
+    useState({
+      title: '',
+      body: ''
+    });
 
   /* =========================
      BOARD
   ========================= */
 
-  const [board, setBoard] = useState({
-    position: '',
-    personName: '',
-    userId: '',
-    displayOrder: '1'
-  });
+  const [board, setBoard] =
+    useState({
+      position: '',
+      personName: '',
+      userId: '',
+      displayOrder: '1'
+    });
 
   /* =========================
      SETTINGS
   ========================= */
 
-  const [setting, setSetting] = useState({
-    key: 'instagram_url',
-    value: 'https://instagram.com/'
-  });
+  const [setting, setSetting] =
+    useState({
+      key: 'instagram_url',
+      value: 'https://instagram.com/'
+    });
 
   /* =========================
      CHAT
   ========================= */
 
-  const [chatThread, setChatThread] = useState<number | null>(null);
-  const [chatText, setChatText] = useState('');
+  const [chatThread, setChatThread] =
+    useState<number | null>(null);
+
+  const [chatText, setChatText] =
+    useState('');
 
   /* =========================
      TABS
   ========================= */
 
   const tabs: [Tab, string, any][] = [
-    ['overview', 'Overview', LayoutDashboard],
-    ['members', 'Members', Users],
-    ['media', 'Media', ImageIcon],
-    ['tasks', 'Tasks', ClipboardCheck],
-    ['meetings', 'Meetings', CalendarDays],
-    ['events', 'Events', Video],
-    ['community', 'Community', Globe],
-    ['chat', 'Admin Chat', MessageCircle],
-    ['board', 'Board', ShieldCheck],
-    ['settings', 'Settings', Settings]
+    [
+      'overview',
+      'Overview',
+      LayoutDashboard
+    ],
+    [
+      'members',
+      'Members',
+      Users
+    ],
+    [
+      'media',
+      'Media',
+      ImageIcon
+    ],
+    [
+      'tasks',
+      'Tasks',
+      ClipboardCheck
+    ],
+    [
+      'meetings',
+      'Meetings',
+      CalendarDays
+    ],
+    [
+      'events',
+      'Events',
+      Video
+    ],
+    [
+      'community',
+      'Community',
+      Globe
+    ],
+    [
+      'chat',
+      'Admin Chat',
+      MessageCircle
+    ],
+    [
+      'board',
+      'Board',
+      ShieldCheck
+    ],
+    [
+      'settings',
+      'Settings',
+      Settings
+    ]
   ];
-
-  /* =========================
-     API HELPER
-  ========================= */
-
-  async function api(url: string, opts?: RequestInit) {
-    const r = await fetch(url, opts);
-
-    const d = await r.json().catch(() => ({}));
-
-    if (!r.ok) {
-      throw new Error(d.error || 'Request failed');
-    }
-
-    return d;
-  }
 
   /* =========================
      LOAD CRM DATA
@@ -176,35 +269,83 @@ export default function AdminCRM() {
     };
 
     const endpoints = [
-      ['dashboard', '/api/admin/dashboard'],
-      ['requests', '/api/admin/requests'],
-      ['users', '/api/admin/users'],
-      ['media', '/api/admin/media'],
-      ['tasks', '/api/admin/tasks'],
-      ['meetings', '/api/admin/meetings'],
-      ['events', '/api/admin/events'],
-      ['comments', '/api/admin/comments'],
-      ['subs', '/api/admin/subscribers'],
-      ['chat', '/api/admin/chat'],
-      ['announcements', '/api/admin/announcements'],
-      ['board', '/api/admin/board'],
-      ['settings', '/api/admin/settings']
+      [
+        'dashboard',
+        '/api/admin/dashboard'
+      ],
+      [
+        'requests',
+        '/api/admin/requests'
+      ],
+      [
+        'users',
+        '/api/admin/users'
+      ],
+      [
+        'media',
+        '/api/admin/media'
+      ],
+      [
+        'tasks',
+        '/api/admin/tasks'
+      ],
+      [
+        'meetings',
+        '/api/admin/meetings'
+      ],
+      [
+        'events',
+        '/api/admin/events'
+      ],
+      [
+        'comments',
+        '/api/admin/comments'
+      ],
+      [
+        'subs',
+        '/api/admin/subscribers'
+      ],
+      [
+        'chat',
+        '/api/admin/chat'
+      ],
+      [
+        'announcements',
+        '/api/admin/announcements'
+      ],
+      [
+        'board',
+        '/api/admin/board'
+      ],
+      [
+        'settings',
+        '/api/admin/settings'
+      ]
     ] as const;
 
-    const results = await Promise.allSettled(
-      endpoints.map(([, url]) => api(url))
-    );
+    const results =
+      await Promise.allSettled(
+        endpoints.map(
+          ([, url]) =>
+            api(url)
+        )
+      );
 
     const failures: string[] = [];
 
     const get = (i: number) => {
       const r = results[i];
 
-      if (r.status === 'fulfilled') {
+      if (
+        r.status ===
+        'fulfilled'
+      ) {
         return r.value;
       }
 
-      failures.push(endpoints[i][0]);
+      failures.push(
+        endpoints[i][0]
+      );
 
       return null;
     };
@@ -224,28 +365,72 @@ export default function AdminCRM() {
     const settings = get(12);
 
     setData({
-      metrics: dashboard?.metrics ?? defaults.metrics,
-      requests: requests?.requests ?? defaults.requests,
-      users: users?.users ?? defaults.users,
-      submissions: media?.submissions ?? defaults.submissions,
-      files: media?.files ?? defaults.files,
-      tasks: tasks?.tasks ?? defaults.tasks,
-      meetings: meetings?.meetings ?? defaults.meetings,
-      events: events?.events ?? defaults.events,
-      comments: comments?.comments ?? defaults.comments,
-      subs: subs?.subscribers ?? defaults.subs,
-      threads: chat?.threads ?? defaults.threads,
-      messages: chat?.messages ?? defaults.messages,
+      metrics:
+        dashboard?.metrics ??
+        defaults.metrics,
+
+      requests:
+        requests?.requests ??
+        defaults.requests,
+
+      users:
+        users?.users ??
+        defaults.users,
+
+      submissions:
+        media?.submissions ??
+        defaults.submissions,
+
+      files:
+        media?.files ??
+        defaults.files,
+
+      tasks:
+        tasks?.tasks ??
+        defaults.tasks,
+
+      meetings:
+        meetings?.meetings ??
+        defaults.meetings,
+
+      events:
+        events?.events ??
+        defaults.events,
+
+      comments:
+        comments?.comments ??
+        defaults.comments,
+
+      subs:
+        subs?.subscribers ??
+        defaults.subs,
+
+      threads:
+        chat?.threads ??
+        defaults.threads,
+
+      messages:
+        chat?.messages ??
+        defaults.messages,
+
       announcements:
         announcements?.announcements ??
         defaults.announcements,
-      board: board?.board ?? defaults.board,
-      settings: settings?.settings ?? defaults.settings
+
+      board:
+        board?.board ??
+        defaults.board,
+
+      settings:
+        settings?.settings ??
+        defaults.settings
     });
 
     setMsg(
       failures.length
-        ? `Some admin sections could not load: ${failures.join(', ')}`
+        ? `Some admin sections could not load: ${failures.join(
+            ', '
+          )}`
         : ''
     );
 
@@ -277,7 +462,7 @@ export default function AdminCRM() {
     } catch (e: any) {
       setMsg(
         e?.message ||
-        'Something went wrong.'
+          'Something went wrong.'
       );
     }
   }
@@ -292,32 +477,40 @@ export default function AdminCRM() {
   ) {
     let reason = '';
 
-    if (action === 'reject') {
-      const entered = window.prompt(
-        'Enter the reason for rejecting this registration:'
-      );
+    if (
+      action === 'reject'
+    ) {
+      const entered =
+        window.prompt(
+          'Enter the reason for rejecting this registration:'
+        );
 
       if (entered === null) {
         return;
       }
 
-      reason = entered.trim();
+      reason =
+        entered.trim();
     }
 
     await act(
       () =>
-        api('/api/admin/requests', {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-          body: JSON.stringify({
-            id,
-            action,
-            reason
-          })
-        }),
+        api(
+          '/api/admin/requests',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+            body:
+              JSON.stringify({
+                id,
+                action,
+                reason
+              })
+          }
+        ),
       action === 'approve'
         ? 'Member approved.'
         : 'Request rejected.'
@@ -328,27 +521,37 @@ export default function AdminCRM() {
      UPDATE USER
   ========================= */
 
-  async function updateUser(u: any) {
+  async function updateUser(
+    u: any
+  ) {
     await act(
       () =>
-        api('/api/admin/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-          body: JSON.stringify({
-            id: u.id,
-            status: u.status,
-            membershipType:
-              u.membershipType ??
-              u.membership_type ??
-              'member',
-            boardPosition:
-              u.boardPosition ??
-              ''
-          })
-        }),
+        api(
+          '/api/admin/users',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+            body:
+              JSON.stringify({
+                id: u.id,
+
+                status:
+                  u.status,
+
+                membershipType:
+                  u.membershipType ??
+                  u.membership_type ??
+                  'member',
+
+                boardPosition:
+                  u.boardPosition ??
+                  ''
+              })
+          }
+        ),
       'Member record updated.'
     );
   }
@@ -357,7 +560,9 @@ export default function AdminCRM() {
      DELETE USER
   ========================= */
 
-  async function deleteUser(id: number) {
+  async function deleteUser(
+    id: number
+  ) {
     if (
       !window.confirm(
         'Are you sure you want to permanently delete this user? This action cannot be undone.'
@@ -368,17 +573,21 @@ export default function AdminCRM() {
 
     await act(
       () =>
-        api('/api/admin/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-          body: JSON.stringify({
-            id,
-            action: 'delete'
-          })
-        }),
+        api(
+          '/api/admin/users',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+            body:
+              JSON.stringify({
+                id,
+                action: 'delete'
+              })
+          }
+        ),
       'User deleted successfully.'
     );
   }
@@ -392,34 +601,85 @@ export default function AdminCRM() {
     ids: any
   ) {
     if (
-      action === 'delete_media' &&
+      action ===
+        'delete_media' &&
       !window.confirm(
-        'Delete this media permanently? This removes the file from the public uploads folder.'
+        'Delete this media permanently? This removes the media record and its stored file.'
       )
     ) {
       return;
     }
 
+    if (
+      action ===
+        'media_status' &&
+      ids?.status ===
+        'rejected' &&
+      !window.confirm(
+        'Reject this individual media file?'
+      )
+    ) {
+      return;
+    }
+
+    let success =
+      'Media action completed.';
+
+    if (
+      action ===
+        'media_status'
+    ) {
+      success =
+        ids?.status ===
+        'approved'
+          ? 'Media approved.'
+          : 'Media rejected.';
+    } else if (
+      action ===
+      'weekly_best'
+    ) {
+      success =
+        'Weekly Best updated.';
+    } else if (
+      action ===
+      'delete_media'
+    ) {
+      success =
+        'Media deleted.';
+    } else if (
+      action.includes(
+        'reject'
+      )
+    ) {
+      success =
+        'Submission rejected.';
+    } else if (
+      action.includes(
+        'approve'
+      )
+    ) {
+      success =
+        'Submission approved.';
+    }
+
     await act(
       () =>
-        api('/api/admin/media', {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-          body: JSON.stringify({
-            ...ids,
-            action
-          })
-        }),
-      action.includes('reject')
-        ? 'Submission rejected.'
-        : action === 'weekly_best'
-        ? 'Weekly Best updated.'
-        : action === 'delete_media'
-        ? 'Media deleted.'
-        : 'Submission approved.'
+        api(
+          '/api/admin/media',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+            body:
+              JSON.stringify({
+                ...ids,
+                action
+              })
+          }
+        ),
+      success
     );
   }
 
@@ -434,14 +694,20 @@ export default function AdminCRM() {
   ) {
     await act(
       () =>
-        api(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-          body: JSON.stringify(payload)
-        }),
+        api(
+          url,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+            body:
+              JSON.stringify(
+                payload
+              )
+          }
+        ),
       text
     );
   }
@@ -450,20 +716,25 @@ export default function AdminCRM() {
      CHAT MESSAGES
   ========================= */
 
-  const messagesFor = useMemo(
-    () =>
-      chatThread
-        ? data.messages?.filter(
-            (m: any) =>
-              Number(m.threadId) ===
-              Number(chatThread)
-          ) || []
-        : [],
-    [
-      data.messages,
-      chatThread
-    ]
-  );
+  const messagesFor =
+    useMemo(
+      () =>
+        chatThread
+          ? data.messages?.filter(
+              (m: any) =>
+                Number(
+                  m.threadId
+                ) ===
+                Number(
+                  chatThread
+                )
+            ) || []
+          : [],
+      [
+        data.messages,
+        chatThread
+      ]
+    );
 
   /* =========================
      LOADING
@@ -505,7 +776,11 @@ export default function AdminCRM() {
           <nav className="crm-nav">
 
             {tabs.map(
-              ([k, label, Icon]) => (
+              ([
+                k,
+                label,
+                Icon
+              ]) => (
                 <a
                   key={k}
                   className={
@@ -520,18 +795,19 @@ export default function AdminCRM() {
                   }}
                 >
                   <Icon size={15} />
-                  <span>{label}</span>
+                  <span>
+                    {label}
+                  </span>
                 </a>
               )
             )}
 
           </nav>
 
-          {/* SIGN OUT */}
-
           <div
             style={{
-              position: 'absolute',
+              position:
+                'absolute',
               bottom: 14,
               left: 14,
               right: 14,
@@ -541,21 +817,22 @@ export default function AdminCRM() {
           >
 
             <button
+              type="button"
               className="tiny-btn"
               style={{
                 width: '100%'
               }}
               onClick={async () => {
-
                 await fetch(
                   '/api/auth/logout',
                   {
-                    method: 'POST'
+                    method:
+                      'POST'
                   }
                 );
 
-                location.href = '/';
-
+                location.href =
+                  '/';
               }}
             >
               Sign out
@@ -588,18 +865,18 @@ export default function AdminCRM() {
                   marginTop: 12
                 }}
               >
-                Every operational button on
-                this screen is connected to a
-                protected API and the same
-                SQLite database used by the
-                student portal.
+                Every operational button
+                on this screen is
+                connected to a protected
+                API and PostgreSQL.
               </p>
 
             </div>
 
             <div
               style={{
-                textAlign: 'right'
+                textAlign:
+                  'right'
               }}
             >
 
@@ -615,8 +892,11 @@ export default function AdminCRM() {
               )}
 
               <button
+                type="button"
                 className="btn"
-                onClick={load}
+                onClick={
+                  load
+                }
               >
                 Refresh data
               </button>
@@ -627,32 +907,53 @@ export default function AdminCRM() {
 
           {/* OVERVIEW */}
 
-          {tab === 'overview' && (
+          {tab ===
+            'overview' && (
             <Overview
-              metrics={data.metrics}
+              metrics={
+                data.metrics
+              }
               onTab={setTab}
             />
           )}
 
           {/* MEMBERS */}
 
-          {tab === 'members' && (
+          {tab ===
+            'members' && (
             <Members
-              requests={data.requests}
-              users={data.users}
-              memberAction={memberAction}
-              updateUser={updateUser}
-              deleteUser={deleteUser}
+              requests={
+                data.requests
+              }
+              users={
+                data.users
+              }
+              memberAction={
+                memberAction
+              }
+              updateUser={
+                updateUser
+              }
+              deleteUser={
+                deleteUser
+              }
             />
           )}
 
           {/* MEDIA */}
 
-          {tab === 'media' && (
+          {tab ===
+            'media' && (
             <Media
-              submissions={data.submissions}
-              files={data.files}
-              mediaAction={mediaAction}
+              submissions={
+                data.submissions
+              }
+              files={
+                data.files
+              }
+              mediaAction={
+                mediaAction
+              }
             />
           )}
 
@@ -670,11 +971,16 @@ export default function AdminCRM() {
 
           {/* MEETINGS */}
 
-          {tab === 'meetings' && (
+          {tab ===
+            'meetings' && (
             <Meetings
               meeting={meeting}
-              setMeeting={setMeeting}
-              meetings={data.meetings}
+              setMeeting={
+                setMeeting
+              }
+              meetings={
+                data.meetings
+              }
               post={post}
             />
           )}
@@ -685,20 +991,31 @@ export default function AdminCRM() {
             <Events
               event={event}
               setEvent={setEvent}
-              events={data.events}
+              events={
+                data.events
+              }
               post={post}
             />
           )}
 
           {/* COMMUNITY */}
 
-          {tab === 'community' && (
+          {tab ===
+            'community' && (
             <Community
-              comments={data.comments}
+              comments={
+                data.comments
+              }
               subs={data.subs}
-              announcements={data.announcements}
-              announcement={announcement}
-              setAnnouncement={setAnnouncement}
+              announcements={
+                data.announcements
+              }
+              announcement={
+                announcement
+              }
+              setAnnouncement={
+                setAnnouncement
+              }
               post={post}
               act={act}
             />
@@ -708,12 +1025,24 @@ export default function AdminCRM() {
 
           {tab === 'chat' && (
             <Chat
-              threads={data.threads}
-              messages={messagesFor}
-              selected={chatThread}
-              setSelected={setChatThread}
-              text={chatText}
-              setText={setChatText}
+              threads={
+                data.threads
+              }
+              messages={
+                messagesFor
+              }
+              selected={
+                chatThread
+              }
+              setSelected={
+                setChatThread
+              }
+              text={
+                chatText
+              }
+              setText={
+                setChatText
+              }
               post={post}
             />
           )}
@@ -724,8 +1053,12 @@ export default function AdminCRM() {
             <Board
               board={data.board}
               users={data.users}
-              boardForm={board}
-              setBoardForm={setBoard}
+              boardForm={
+                board
+              }
+              setBoardForm={
+                setBoard
+              }
               post={post}
               act={act}
             />
@@ -733,11 +1066,16 @@ export default function AdminCRM() {
 
           {/* SETTINGS */}
 
-          {tab === 'settings' && (
+          {tab ===
+            'settings' && (
             <SettingsPanel
-              settings={data.settings}
+              settings={
+                data.settings
+              }
               setting={setting}
-              setSetting={setSetting}
+              setSetting={
+                setSetting
+              }
               post={post}
             />
           )}
@@ -762,16 +1100,17 @@ function Overview({
   metrics: any;
   onTab: (x: Tab) => void;
 }) {
-
   const cards = [
     [
       'Pending requests',
-      metrics?.pendingRequests ?? 0,
+      metrics?.pendingRequests ??
+        0,
       'members'
     ],
     [
       'Pending media',
-      metrics?.pendingMedia ?? 0,
+      metrics?.pendingMedia ??
+        0,
       'media'
     ],
     [
@@ -786,27 +1125,34 @@ function Overview({
     ],
     [
       'Weekly Best',
-      metrics?.weeklyBest ?? 0,
+      metrics?.weeklyBest ??
+        0,
       'media'
     ]
   ];
 
   return (
     <>
-
       <div className="grid-3">
 
         {cards.map(
           ([label, n, t]) => (
             <button
-              key={String(label)}
+              type="button"
+              key={String(
+                label
+              )}
               className="card card-pad"
               style={{
-                textAlign: 'left',
-                cursor: 'pointer'
+                textAlign:
+                  'left',
+                cursor:
+                  'pointer'
               }}
               onClick={() =>
-                onTab(t as Tab)
+                onTab(
+                  t as Tab
+                )
               }
             >
 
@@ -865,12 +1211,14 @@ function Overview({
               lineHeight: 1.7
             }}
           >
-            Membership approval, member
-            role/Board position, media moderation,
-            task creation, meetings, events,
-            comments, subscribers, support chat,
-            announcements, board roster and
-            social settings.
+            Membership approval,
+            member role/Board position,
+            media moderation, task
+            creation, meetings, events,
+            comments, subscribers,
+            support chat, announcements,
+            board roster and social
+            settings.
           </p>
 
         </div>
@@ -892,17 +1240,17 @@ function Overview({
               lineHeight: 1.7
             }}
           >
-            The server checks the signed session
-            for every `/api/admin/*` route.
-            Students cannot assign themselves
-            Board status, approve media or
-            publish LMS content.
+            The server checks the
+            signed session for every
+            /api/admin route. Students
+            cannot assign themselves
+            Board status, approve media
+            or publish LMS content.
           </p>
 
         </div>
 
       </div>
-
     </>
   );
 }
@@ -925,14 +1273,19 @@ function Members({
     id: number,
     a: string
   ) => void;
-  updateUser: (u: any) => void;
-  deleteUser: (id: number) => Promise<void>;
+  updateUser: (
+    u: any
+  ) => void;
+  deleteUser: (
+    id: number
+  ) => Promise<void>;
 }) {
-
   const [
     localUsers,
     setLocalUsers
-  ] = useState<any[]>(users);
+  ] = useState<any[]>(
+    users
+  );
 
   useEffect(() => {
     setLocalUsers(users);
@@ -943,15 +1296,18 @@ function Members({
     field: string,
     value: string
   ) {
-    setLocalUsers(prev =>
-      prev.map(user =>
-        user.id === id
-          ? {
-              ...user,
-              [field]: value
-            }
-          : user
-      )
+    setLocalUsers(
+      prev =>
+        prev.map(
+          user =>
+            user.id === id
+              ? {
+                  ...user,
+                  [field]:
+                    value
+                }
+              : user
+        )
     );
   }
 
@@ -959,33 +1315,39 @@ function Members({
     obj: any,
     ...keys: string[]
   ) {
-
     for (const key of keys) {
-
       if (
-        obj?.[key] !== undefined &&
+        obj?.[key] !==
+          undefined &&
         obj?.[key] !== null &&
-        String(obj[key]).trim() !== ''
+        String(
+          obj[key]
+        ).trim() !== ''
       ) {
-        return String(obj[key]);
+        return String(
+          obj[key]
+        );
       }
-
     }
 
     return 'Not provided';
   }
 
-  function profileImage(user: any) {
-
-    const path = value(
-      user,
-      'pfp_path',
-      'profilePicture',
-      'profile_picture'
-    );
+  function profileImage(
+    user: any
+  ) {
+    const path =
+      value(
+        user,
+        'pfp_url',
+        'pfp_path',
+        'profilePicture',
+        'profile_picture'
+      );
 
     if (
-      path === 'Not provided'
+      path ===
+      'Not provided'
     ) {
       return '';
     }
@@ -993,8 +1355,9 @@ function Members({
     return path;
   }
 
-  function studentName(user: any) {
-
+  function studentName(
+    user: any
+  ) {
     return value(
       user,
       'full_name',
@@ -1002,25 +1365,21 @@ function Members({
       'student_name',
       'name'
     );
-
   }
 
-  function surname(user: any) {
-
+  function surname(
+    user: any
+  ) {
     return value(
       user,
       'surname'
     );
-
   }
 
   return (
-
     <div className="grid-2">
 
-      {/* =================================================
-          REGISTRATION QUEUE
-      ================================================= */}
+      {/* REGISTRATION QUEUE */}
 
       <section className="card card-pad">
 
@@ -1040,14 +1399,14 @@ function Members({
             marginBottom: 18
           }}
         >
-          Complete student registration
-          information is shown here.
-          Passwords are never displayed.
+          Complete student
+          registration information
+          is shown here. Passwords are
+          never displayed.
         </p>
 
         {requests.map(
           (r: any) => (
-
             <div
               className="admin-row"
               key={r.id}
@@ -1059,8 +1418,6 @@ function Members({
                 gap: 14
               }}
             >
-
-              {/* TOP */}
 
               <div
                 style={{
@@ -1074,26 +1431,26 @@ function Members({
                 }}
               >
 
-                {/* PROFILE */}
-
                 <div
                   style={{
-                    display: 'flex',
+                    display:
+                      'flex',
                     gap: 12,
                     alignItems:
                       'flex-start'
                   }}
                 >
 
-                  {profileImage(r) ? (
-
+                  {profileImage(
+                    r
+                  ) ? (
                     <img
-                      src={
-                        profileImage(r)
-                      }
-                      alt={
-                        studentName(r)
-                      }
+                      src={profileImage(
+                        r
+                      )}
+                      alt={studentName(
+                        r
+                      )}
                       style={{
                         width: 52,
                         height: 52,
@@ -1104,9 +1461,7 @@ function Members({
                           '1px solid rgba(255,255,255,.10)'
                       }}
                     />
-
                   ) : (
-
                     <div
                       style={{
                         width: 52,
@@ -1114,7 +1469,8 @@ function Members({
                         borderRadius: 10,
                         border:
                           '1px solid rgba(255,255,255,.10)',
-                        display: 'flex',
+                        display:
+                          'flex',
                         alignItems:
                           'center',
                         justifyContent:
@@ -1126,7 +1482,6 @@ function Members({
                     >
                       👤
                     </div>
-
                   )}
 
                   <div>
@@ -1137,14 +1492,18 @@ function Members({
                         color: '#fff'
                       }}
                     >
+                      {studentName(
+                        r
+                      )}
 
-                      {studentName(r)}
-
-                      {surname(r) !==
+                      {surname(
+                        r
+                      ) !==
                       'Not provided'
-                        ? ` ${surname(r)}`
+                        ? ` ${surname(
+                            r
+                          )}`
                         : ''}
-
                     </strong>
 
                     <div
@@ -1154,14 +1513,13 @@ function Members({
                         marginTop: 4
                       }}
                     >
-                      Registration ID: {r.id}
+                      Registration ID:{' '}
+                      {r.id}
                     </div>
 
                   </div>
 
                 </div>
-
-                {/* ACTIONS */}
 
                 <div
                   className="action-row"
@@ -1171,23 +1529,33 @@ function Members({
                 >
 
                   <button
+                    type="button"
                     className="tiny-btn gold"
                     onClick={() =>
                       memberAction(
-                        Number(r.id),
+                        Number(
+                          r.id
+                        ),
                         'approve'
                       )
                     }
                   >
-                    <Check size={10} />
+                    <Check
+                      size={
+                        10
+                      }
+                    />
                     Approve
                   </button>
 
                   <button
+                    type="button"
                     className="tiny-btn danger"
                     onClick={() =>
                       memberAction(
-                        Number(r.id),
+                        Number(
+                          r.id
+                        ),
                         'reject'
                       )
                     }
@@ -1199,305 +1567,148 @@ function Members({
 
               </div>
 
-              {/* =================================================
-                  FULL STUDENT INFORMATION
-              ================================================= */}
-
               <div
                 style={{
-                  width: '100%',
-                  display: 'grid',
+                  width:
+                    '100%',
+                  display:
+                    'grid',
                   gridTemplateColumns:
                     'repeat(auto-fit,minmax(180px,1fr))',
                   gap: 10
                 }}
               >
 
-                {/* FULL NAME */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Full name
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {studentName(r)}
-                  </div>
-
-                </div>
-
-                {/* SURNAME */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Surname
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {surname(r)}
-                  </div>
-
-                </div>
-
-                {/* STUDENT ID */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Student ID
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                {[
+                  [
+                    'Full name',
+                    studentName(
+                      r
+                    )
+                  ],
+                  [
+                    'Surname',
+                    surname(
+                      r
+                    )
+                  ],
+                  [
+                    'Student ID',
+                    value(
                       r,
                       'student_id',
                       'studentId'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* GRADE */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Grade
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Grade',
+                    value(
                       r,
                       'grade',
                       'student_grade',
                       'grade_name'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* CLASS */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Class
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Class',
+                    value(
                       r,
                       'class_name',
                       'className',
                       'class',
                       'student_class'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* PARENT PHONE */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Parent / Guardian phone
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Parent / Guardian phone',
+                    value(
                       r,
                       'parent_phone',
                       'parentPhone',
                       'parent_guardian_phone',
                       'guardian_phone'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* EMAIL */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Email
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5,
-                      wordBreak:
-                        'break-word'
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Email',
+                    value(
                       r,
                       'email'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* ADDRESS */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Address
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5,
-                      lineHeight: 1.5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Address',
+                    value(
                       r,
                       'address',
                       'home_address'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* STATUS */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Status
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Status',
+                    value(
                       r,
                       'status'
-                    )}
-                  </div>
-
-                </div>
-
-                {/* MEMBERSHIP */}
-
-                <div
-                  className="card"
-                  style={{
-                    padding: 10
-                  }}
-                >
-
-                  <div className="kicker">
-                    Membership type
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 5
-                    }}
-                  >
-                    {value(
+                    )
+                  ],
+                  [
+                    'Membership type',
+                    value(
                       r,
                       'membership_type',
                       'membershipType'
-                    )}
-                  </div>
+                    )
+                  ]
+                ].map(
+                  ([
+                    label,
+                    item
+                  ]) => (
+                    <div
+                      key={
+                        label
+                      }
+                      className="card"
+                      style={{
+                        padding:
+                          10
+                      }}
+                    >
+                      <div className="kicker">
+                        {
+                          label
+                        }
+                      </div>
 
-                </div>
+                      <div
+                        style={{
+                          fontSize:
+                            10,
+                          marginTop:
+                            5,
+                          lineHeight:
+                            1.5,
+                          wordBreak:
+                            label ===
+                            'Email'
+                              ? 'break-word'
+                              : undefined
+                        }}
+                      >
+                        {
+                          item
+                        }
+                      </div>
+                    </div>
+                  )
+                )}
 
               </div>
 
-              {/* PASSWORD */}
-
               <div
                 style={{
-                  width: '100%',
+                  width:
+                    '100%',
                   padding:
                     '9px 11px',
                   borderRadius: 8,
@@ -1509,11 +1720,11 @@ function Members({
                   color: '#777'
                 }}
               >
-                🔒 Password: protected and never displayed.
+                🔒 Password: protected
+                and never displayed.
               </div>
 
             </div>
-
           )
         )}
 
@@ -1530,9 +1741,7 @@ function Members({
 
       </section>
 
-      {/* =================================================
-          MEMBER DIRECTORY
-      ================================================= */}
+      {/* MEMBER DIRECTORY */}
 
       <section className="card card-pad">
 
@@ -1549,78 +1758,49 @@ function Members({
           <table className="table">
 
             <thead>
-
               <tr>
-
-                <th>
-                  Student
-                </th>
-
-                <th>
-                  Student ID
-                </th>
-
-                <th>
-                  Grade
-                </th>
-
-                <th>
-                  Class
-                </th>
-
-                <th>
-                  Parent Phone
-                </th>
-
-                <th>
-                  Status
-                </th>
-
-                <th>
-                  Type
-                </th>
-
-                <th>
-                  Position
-                </th>
-
-                <th>
-                  Actions
-                </th>
-
+                <th>Student</th>
+                <th>Student ID</th>
+                <th>Grade</th>
+                <th>Class</th>
+                <th>Parent Phone</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>Position</th>
+                <th>Actions</th>
               </tr>
-
             </thead>
 
             <tbody>
 
               {localUsers
-
                 .filter(
                   (u: any) =>
                     u.role ===
                     'student'
                 )
-
                 .slice(0, 100)
-
                 .map(
                   (u: any) => (
-
-                    <tr key={u.id}>
-
-                      {/* STUDENT */}
+                    <tr
+                      key={
+                        u.id
+                      }
+                    >
 
                       <td>
-
                         <strong>
-                          {studentName(u)}
+                          {studentName(
+                            u
+                          )}
                         </strong>
 
                         <br />
 
                         <small>
-                          {surname(u)}
+                          {surname(
+                            u
+                          )}
                         </small>
 
                         <br />
@@ -1631,10 +1811,7 @@ function Members({
                             'email'
                           )}
                         </small>
-
                       </td>
-
-                      {/* STUDENT ID */}
 
                       <td>
                         {value(
@@ -1644,8 +1821,6 @@ function Members({
                         )}
                       </td>
 
-                      {/* GRADE */}
-
                       <td>
                         {value(
                           u,
@@ -1653,8 +1828,6 @@ function Members({
                           'student_grade'
                         )}
                       </td>
-
-                      {/* CLASS */}
 
                       <td>
                         {value(
@@ -1664,8 +1837,6 @@ function Members({
                           'class'
                         )}
                       </td>
-
-                      {/* PARENT PHONE */}
 
                       <td>
                         {value(
@@ -1677,20 +1848,20 @@ function Members({
                         )}
                       </td>
 
-                      {/* STATUS */}
-
                       <td>
 
                         <select
                           className="input"
                           value={
-                            u.status || ''
+                            u.status ||
+                            ''
                           }
                           onChange={e =>
                             changeUser(
                               u.id,
                               'status',
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                         >
@@ -1711,8 +1882,6 @@ function Members({
 
                       </td>
 
-                      {/* TYPE */}
-
                       <td>
 
                         <select
@@ -1726,7 +1895,8 @@ function Members({
                             changeUser(
                               u.id,
                               'membershipType',
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                         >
@@ -1743,8 +1913,6 @@ function Members({
 
                       </td>
 
-                      {/* POSITION */}
-
                       <td>
 
                         <input
@@ -1760,26 +1928,25 @@ function Members({
                             changeUser(
                               u.id,
                               'boardPosition',
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                         />
 
                       </td>
 
-                      {/* ACTIONS */}
-
                       <td>
 
-                        <div
-                          className="action-row"
-                        >
+                        <div className="action-row">
 
                           <button
                             type="button"
                             className="tiny-btn gold"
                             onClick={() =>
-                              updateUser(u)
+                              updateUser(
+                                u
+                              )
                             }
                           >
                             Save
@@ -1790,12 +1957,17 @@ function Members({
                             className="tiny-btn danger"
                             onClick={() =>
                               deleteUser(
-                                Number(u.id)
+                                Number(
+                                  u.id
+                                )
                               )
                             }
-                            title="Delete user permanently"
                           >
-                            <Trash2 size={10} />
+                            <Trash2
+                              size={
+                                10
+                              }
+                            />
                             Delete
                           </button>
 
@@ -1804,7 +1976,6 @@ function Members({
                       </td>
 
                     </tr>
-
                   )
                 )}
 
@@ -1837,9 +2008,527 @@ function Media({
     ids: any
   ) => void;
 }) {
+  function isVideo(
+    file: any
+  ) {
+    return (
+      String(
+        file.kind || ''
+      ).toLowerCase() ===
+      'video'
+    );
+  }
+
+  function isImage(
+    file: any
+  ) {
+    return (
+      String(
+        file.kind || ''
+      ).toLowerCase() ===
+      'image'
+    );
+  }
+
+  function downloadUrl(
+    id: any
+  ) {
+    return `/api/admin/media/download?mediaId=${encodeURIComponent(
+      String(id)
+    )}`;
+  }
+
+  function submissionFiles(
+    submissionId: any
+  ) {
+    return files.filter(
+      (f: any) =>
+        Number(
+          f.submissionId
+        ) ===
+        Number(
+          submissionId
+        )
+    );
+  }
+
+  /* =======================================================
+     PREVIEW
+  ======================================================= */
+
+  function Preview({
+    file
+  }: {
+    file: any;
+  }) {
+    if (!file?.mediaUrl) {
+      return (
+        <div
+          style={{
+            width:
+              '100%',
+            height:
+              '100%',
+            display:
+              'flex',
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
+            color: '#777',
+            fontSize: 10,
+            padding: 12,
+            textAlign:
+              'center'
+          }}
+        >
+          Media URL unavailable.
+        </div>
+      );
+    }
+
+    if (
+      isVideo(file)
+    ) {
+      return (
+        <video
+          src={
+            file.mediaUrl
+          }
+          controls
+          preload="metadata"
+          playsInline
+          style={{
+            width:
+              '100%',
+            height:
+              '100%',
+            display:
+              'block',
+            objectFit:
+              'cover',
+            background:
+              '#000'
+          }}
+        />
+      );
+    }
+
+    if (
+      isImage(file)
+    ) {
+      return (
+        <img
+          src={
+            file.mediaUrl
+          }
+          alt={
+            file.title ||
+            'Media preview'
+          }
+          loading="lazy"
+          style={{
+            width:
+              '100%',
+            height:
+              '100%',
+            display:
+              'block',
+            objectFit:
+              'cover'
+          }}
+        />
+      );
+    }
+
+    return (
+      <div
+        style={{
+          width:
+            '100%',
+          height:
+            '100%',
+          display:
+            'flex',
+          alignItems:
+            'center',
+          justifyContent:
+            'center',
+          color: '#999',
+          fontSize: 11,
+          padding: 12,
+          textAlign:
+            'center'
+        }}
+      >
+        Unsupported preview type.
+      </div>
+    );
+  }
+
+  /* =======================================================
+     FILE CARD
+  ======================================================= */
+
+  function FileCard({
+    file,
+    showBest = false,
+    moderation = false
+  }: {
+    file: any;
+    showBest?: boolean;
+    moderation?: boolean;
+  }) {
+    const status =
+      String(
+        file.status ||
+          'pending'
+      ).toLowerCase();
+
+    return (
+      <div
+        style={{
+          border:
+            '1px solid rgba(255,255,255,.08)',
+          borderRadius:
+            12,
+          overflow:
+            'hidden',
+          background:
+            'rgba(255,255,255,.025)'
+        }}
+      >
+
+        {/* PREVIEW */}
+
+        <div
+          style={{
+            aspectRatio:
+              '16 / 10',
+            background:
+              '#101010',
+            overflow:
+              'hidden'
+          }}
+        >
+
+          <Preview
+            file={
+              file
+            }
+          />
+
+        </div>
+
+        {/* DETAILS */}
+
+        <div
+          style={{
+            padding:
+              10
+          }}
+        >
+
+          <div
+            style={{
+              display:
+                'flex',
+              justifyContent:
+                'space-between',
+              gap: 8,
+              alignItems:
+                'flex-start'
+            }}
+          >
+
+            <strong
+              style={{
+                fontSize:
+                  10,
+                lineHeight:
+                  1.3,
+                overflow:
+                  'hidden',
+                textOverflow:
+                  'ellipsis'
+              }}
+            >
+              {file.title ||
+                'Untitled media'}
+            </strong>
+
+            <span
+              className={
+                `status ${
+                  status
+                }`
+              }
+              style={{
+                fontSize:
+                  8,
+                flexShrink:
+                  0
+              }}
+            >
+              {status.toUpperCase()}
+            </span>
+
+          </div>
+
+          <div
+            className="soft"
+            style={{
+              fontSize:
+                8,
+              marginTop:
+                5
+            }}
+          >
+            {String(
+              file.kind ||
+                ''
+            ).toUpperCase()}
+
+            {' · '}
+
+            {file.author ||
+              'Unknown author'}
+          </div>
+
+          {file.description && (
+            <div
+              className="soft"
+              style={{
+                fontSize:
+                  8,
+                marginTop:
+                  6,
+                lineHeight:
+                  1.4
+              }}
+            >
+              {
+                file.description
+              }
+            </div>
+          )}
+
+          {/* ACTIONS */}
+
+          <div
+            className="action-row"
+            style={{
+              marginTop:
+                10,
+              flexWrap:
+                'wrap'
+            }}
+          >
+
+            {/* OPEN */}
+
+            {file.mediaUrl && (
+              <a
+                className="tiny-btn"
+                href={
+                  file.mediaUrl
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open
+              </a>
+            )}
+
+            {/* DOWNLOAD */}
+
+            <a
+              className="tiny-btn"
+              href={downloadUrl(
+                file.id
+              )}
+            >
+              Download
+            </a>
+
+            {/* INDIVIDUAL APPROVAL */}
+
+            {moderation &&
+              status ===
+                'pending' && (
+                <>
+                  <button
+                    type="button"
+                    className="tiny-btn gold"
+                    onClick={() =>
+                      mediaAction(
+                        'media_status',
+                        {
+                          mediaId:
+                            file.id,
+                          status:
+                            'approved'
+                        }
+                      )
+                    }
+                  >
+                    <Check
+                      size={
+                        10
+                      }
+                    />
+                    Approve
+                  </button>
+
+                  <button
+                    type="button"
+                    className="tiny-btn danger"
+                    onClick={() =>
+                      mediaAction(
+                        'media_status',
+                        {
+                          mediaId:
+                            file.id,
+                          status:
+                            'rejected'
+                        }
+                      )
+                    }
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
+
+            {/* WEEKLY BEST */}
+
+            {showBest &&
+              status ===
+                'approved' && (
+                <button
+                  type="button"
+                  className={
+                    `tiny-btn ${
+                      file.weeklyBest
+                        ? 'gold'
+                        : ''
+                    }`
+                  }
+                  onClick={() =>
+                    mediaAction(
+                      'weekly_best',
+                      {
+                        mediaId:
+                          file.id,
+                        weeklyBest:
+                          !Boolean(
+                            file.weeklyBest
+                          )
+                      }
+                    )
+                  }
+                >
+                  {file.weeklyBest
+                    ? '★ Weekly Best'
+                    : 'Weekly Best'}
+                </button>
+              )}
+
+            {/* DELETE */}
+
+            <button
+              type="button"
+              className="tiny-btn danger"
+              onClick={() =>
+                mediaAction(
+                  'delete_media',
+                  {
+                    mediaId:
+                      file.id
+                  }
+                )
+              }
+            >
+              <Trash2
+                size={
+                  10
+                }
+              />
+              Delete
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  /* =======================================================
+     PENDING SUBMISSIONS
+  ======================================================= */
+
+  const pendingSubmissionRows =
+    submissions
+      .map((s: any) => {
+        const all =
+          submissionFiles(
+            s.id
+          );
+
+        const pending =
+          all.filter(
+            (f: any) =>
+              String(
+                f.status ||
+                  'pending'
+              ).toLowerCase() ===
+              'pending'
+          );
+
+        return {
+          submission:
+            s,
+          files:
+            pending
+        };
+      })
+      .filter(
+        row =>
+          row.files.length >
+          0
+      );
+
+  const approvedFiles =
+    files.filter(
+      (f: any) =>
+        String(
+          f.status || ''
+        ).toLowerCase() ===
+        'approved'
+    );
+
+  const rejectedFiles =
+    files.filter(
+      (f: any) =>
+        String(
+          f.status || ''
+        ).toLowerCase() ===
+        'rejected'
+    );
+
+  const pendingFiles =
+    files.filter(
+      (f: any) =>
+        String(
+          f.status ||
+            'pending'
+        ).toLowerCase() ===
+        'pending'
+    );
 
   return (
-
     <section className="card card-pad">
 
       <div className="kicker">
@@ -1853,289 +2542,336 @@ function Media({
       <p
         className="soft"
         style={{
-          fontSize: 10,
-          lineHeight: 1.6
+          fontSize:
+            10,
+          lineHeight:
+            1.6
         }}
       >
-        ZIP max 5 GB · each photo &lt;50 MB ·
-        each video ≤4 GB · description required.
-        Approving a submission publishes all
-        its contained media.
+        ZIP max 5 GB · each
+        photo &lt;50 MB · each
+        video ≤4 GB · description
+        required. Each photo or
+        video is reviewed separately
+        before publication.
       </p>
 
-      {submissions.map(
-        (s: any) => (
-
-          <div
-            className="admin-row"
-            key={s.id}
-          >
-
-            <div>
-
-              <strong
-                style={{
-                  fontSize: 10
-                }}
-              >
-                {s.student} ·
-                {' '}
-                {s.taskTitle ||
-                  'General'}
-              </strong>
-
-              <div
-                className="soft"
-                style={{
-                  fontSize: 9
-                }}
-              >
-
-                {s.uploadType?.toUpperCase()}
-
-                {' · '}
-
-                {(
-                  Number(s.zipSize) /
-                  1024 /
-                  1024
-                ).toFixed(1)}
-
-                {' MB · '}
-
-                {s.description}
-
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                  marginTop: 7
-                }}
-              >
-
-                {files
-
-                  .filter(
-                    (f: any) =>
-                      f.submissionId ===
-                      s.id
-                  )
-
-                  .map(
-                    (f: any) => (
-
-                      <span
-                        key={f.id}
-                        className="pill"
-                        style={{
-                          display:
-                            'inline-flex',
-                          alignItems:
-                            'center',
-                          gap: 6
-                        }}
-                      >
-
-                        <a
-                          href={f.mediaUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {f.kind}
-                          {' · '}
-                          {f.title}
-                          {' ↗'}
-                        </a>
-
-                        <button
-                          className="tiny-btn danger"
-                          onClick={() =>
-                            mediaAction(
-                              'delete_media',
-                              {
-                                mediaId:
-                                  f.id
-                              }
-                            )
-                          }
-                          title="Delete media"
-                        >
-                          <Trash2
-                            size={10}
-                          />
-                        </button>
-
-                      </span>
-
-                    )
-                  )}
-
-              </div>
-
-            </div>
-
-            <div
-              className="action-row"
-            >
-
-              <button
-                className="tiny-btn gold"
-                onClick={() =>
-                  mediaAction(
-                    'approve_submission',
-                    {
-                      submissionId:
-                        s.id
-                    }
-                  )
-                }
-              >
-                Approve
-              </button>
-
-              <button
-                className="tiny-btn danger"
-                onClick={() =>
-                  mediaAction(
-                    'reject_submission',
-                    {
-                      submissionId:
-                        s.id
-                    }
-                  )
-                }
-              >
-                Reject
-              </button>
-
-            </div>
-
-          </div>
-
-        )
-      )}
-
-      {!submissions.length && (
-        <p
-          className="soft"
-          style={{
-            fontSize: 10
-          }}
-        >
-          No pending submissions.
-        </p>
-      )}
-
-      {/* WEEKLY BEST */}
+      {/* ===================================================
+          PENDING
+      =================================================== */}
 
       <div
         style={{
-          marginTop: 25
+          marginTop:
+            24,
+          marginBottom:
+            10
         }}
       >
 
         <div className="kicker">
-          Weekly Best controls
+          Pending media
         </div>
 
-        {files
+        <h3
+          style={{
+            marginTop:
+              5
+          }}
+        >
+          Review each file individually.
+        </h3>
 
-          .filter(
-            (f: any) =>
-              f.status ===
-              'approved'
-          )
+      </div>
 
-          .slice(0, 30)
+      {!pendingFiles.length && (
+        <div
+          className="notice"
+          style={{
+            marginBottom:
+              18
+          }}
+        >
+          No pending media.
+        </div>
+      )}
 
-          .map(
-            (f: any) => (
+      {pendingSubmissionRows.map(
+        ({
+          submission,
+          files:
+            pendingList
+        }: any) => (
+          <div
+            className="admin-row"
+            key={
+              submission.id
+            }
+            style={{
+              display:
+                'block',
+              marginBottom:
+                18
+            }}
+          >
 
-              <div
-                className="admin-row"
-                key={f.id}
-              >
+            {/* SUBMISSION HEADER */}
 
-                <div>
+            <div
+              style={{
+                display:
+                  'flex',
+                justifyContent:
+                  'space-between',
+                gap: 14,
+                alignItems:
+                  'flex-start',
+                flexWrap:
+                  'wrap'
+              }}
+            >
 
-                  <strong
-                    style={{
-                      fontSize: 10
-                    }}
-                  >
-                    {f.title}
-                  </strong>
+              <div>
 
-                  <div
-                    className="soft"
-                    style={{
-                      fontSize: 8
-                    }}
-                  >
-                    {f.author} ·
-                    {f.kind}
-                  </div>
+                <strong
+                  style={{
+                    fontSize:
+                      11
+                  }}
+                >
+                  {
+                    submission.student
+                  }
 
-                </div>
+                  {' · '}
+
+                  {
+                    submission.taskTitle ||
+                    'General'
+                  }
+                </strong>
 
                 <div
-                  className="action-row"
+                  className="soft"
+                  style={{
+                    fontSize:
+                      9,
+                    marginTop:
+                      5
+                  }}
                 >
 
-                  <button
-                    className={
-                      `tiny-btn ${
-                        f.weeklyBest
-                          ? 'gold'
-                          : ''
-                      }`
-                    }
-                    onClick={() =>
-                      mediaAction(
-                        'weekly_best',
-                        {
-                          mediaId:
-                            f.id,
-                          weeklyBest:
-                            !f.weeklyBest
-                        }
-                      )
-                    }
-                  >
-                    {f.weeklyBest
-                      ? '★ Weekly Best'
-                      : 'Set Weekly Best'}
-                  </button>
+                  {String(
+                    submission.uploadType ||
+                      ''
+                  ).toUpperCase()}
 
-                  <button
-                    className="tiny-btn danger"
-                    onClick={() =>
-                      mediaAction(
-                        'delete_media',
-                        {
-                          mediaId:
-                            f.id
-                        }
-                      )
-                    }
-                  >
-                    <Trash2
-                      size={10}
-                    />
-                    Delete
-                  </button>
+                  {' · '}
+
+                  {(
+                    Number(
+                      submission.zipSize
+                    ) /
+                    1024 /
+                    1024
+                  ).toFixed(
+                    1
+                  )}
+
+                  {' MB · '}
+
+                  {
+                    submission.description
+                  }
 
                 </div>
 
               </div>
 
+              <div
+                style={{
+                  fontSize:
+                    8,
+                  color:
+                    '#888'
+                }}
+              >
+                {
+                  pendingList.length
+                }{' '}
+                file
+                {
+                  pendingList.length !==
+                  1
+                    ? 's'
+                    : ''
+                } waiting
+              </div>
+
+            </div>
+
+            {/* PENDING FILES */}
+
+            <div
+              style={{
+                display:
+                  'grid',
+                gridTemplateColumns:
+                  'repeat(auto-fill,minmax(210px,1fr))',
+                gap: 12,
+                marginTop:
+                  15
+              }}
+            >
+
+              {pendingList.map(
+                (
+                  file: any
+                ) => (
+                  <FileCard
+                    key={
+                      file.id
+                    }
+                    file={
+                      file
+                    }
+                    moderation
+                  />
+                )
+              )}
+
+            </div>
+
+          </div>
+        )
+      )}
+
+      {/* ===================================================
+          APPROVED / PUBLISHED
+      =================================================== */}
+
+      <div
+        style={{
+          marginTop:
+            30,
+          marginBottom:
+            10
+        }}
+      >
+
+        <div className="kicker">
+          Published media
+        </div>
+
+        <h3
+          style={{
+            marginTop:
+              5
+          }}
+        >
+          Approved photos & videos.
+        </h3>
+
+      </div>
+
+      {!approvedFiles.length && (
+        <div
+          className="notice"
+          style={{
+            marginBottom:
+              16
+          }}
+        >
+          No approved media yet.
+        </div>
+      )}
+
+      {approvedFiles.length >
+        0 && (
+        <div
+          style={{
+            display:
+              'grid',
+            gridTemplateColumns:
+              'repeat(auto-fill,minmax(210px,1fr))',
+            gap: 14
+          }}
+        >
+
+          {approvedFiles.map(
+            (file: any) => (
+              <FileCard
+                key={
+                  file.id
+                }
+                file={
+                  file
+                }
+                showBest
+              />
             )
           )}
 
-      </div>
+        </div>
+      )}
+
+      {/* ===================================================
+          REJECTED
+      =================================================== */}
+
+      {rejectedFiles.length >
+        0 && (
+        <>
+          <div
+            style={{
+              marginTop:
+                30,
+              marginBottom:
+                10
+            }}
+          >
+
+            <div className="kicker">
+              Rejected media
+            </div>
+
+            <h3
+              style={{
+                marginTop:
+                  5
+              }}
+            >
+              Previously rejected files.
+            </h3>
+
+          </div>
+
+          <div
+            style={{
+              display:
+                'grid',
+              gridTemplateColumns:
+                'repeat(auto-fill,minmax(210px,1fr))',
+              gap: 12
+            }}
+          >
+
+            {rejectedFiles.map(
+              (file: any) => (
+                <FileCard
+                  key={
+                    file.id
+                  }
+                  file={
+                    file
+                  }
+                />
+              )
+            )}
+
+          </div>
+        </>
+      )}
 
     </section>
   );
@@ -2159,9 +2895,7 @@ function Tasks({
   post: any;
   act: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       <section className="card card-pad">
@@ -2179,12 +2913,15 @@ function Tasks({
           <input
             className="input"
             placeholder="Task title"
-            value={task.title}
+            value={
+              task.title
+            }
             onChange={e =>
               setTask({
                 ...task,
                 title:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2192,12 +2929,15 @@ function Tasks({
           <textarea
             className="input"
             placeholder="Task description / instructions"
-            value={task.description}
+            value={
+              task.description
+            }
             onChange={e =>
               setTask({
                 ...task,
                 description:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2205,12 +2945,15 @@ function Tasks({
           <input
             className="input"
             type="datetime-local"
-            value={task.dueDate}
+            value={
+              task.dueDate
+            }
             onChange={e =>
               setTask({
                 ...task,
                 dueDate:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2224,7 +2967,8 @@ function Tasks({
               setTask({
                 ...task,
                 uploadType:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           >
@@ -2244,6 +2988,7 @@ function Tasks({
           </select>
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -2253,7 +2998,9 @@ function Tasks({
               )
             }
           >
-            <Plus size={14} />
+            <Plus
+              size={14}
+            />
             Publish task
           </button>
 
@@ -2273,60 +3020,75 @@ function Tasks({
 
         {tasks.map(
           (t: any) => (
-
             <div
               className="admin-row"
-              key={t.id}
+              key={
+                t.id
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 10
+                    fontSize:
+                      10
                   }}
                 >
-                  {t.title}
+                  {
+                    t.title
+                  }
                 </strong>
 
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
+
                   {String(
                     t.upload_type ||
-                    ''
+                      ''
                   ).toUpperCase()}
 
                   {' · '}
 
-                  Due {t.due_date}
+                  Due {
+                    t.due_date
+                  }
+
                 </div>
 
               </div>
 
               <button
+                type="button"
                 className="tiny-btn danger"
                 onClick={() =>
                   act(
                     () =>
-                      fetch(
+                      api(
                         '/api/admin/tasks',
                         {
-                          method: 'POST',
+                          method:
+                            'POST',
+
                           headers: {
                             'Content-Type':
                               'application/json'
                           },
+
                           body:
-                            JSON.stringify({
-                              action:
-                                'delete',
-                              id:
-                                t.id
-                            })
+                            JSON.stringify(
+                              {
+                                action:
+                                  'delete',
+                                id:
+                                  t.id
+                              }
+                            )
                         }
                       ),
                     'Task deleted.'
@@ -2337,8 +3099,19 @@ function Tasks({
               </button>
 
             </div>
-
           )
+        )}
+
+        {!tasks.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No tasks published yet.
+          </p>
         )}
 
       </section>
@@ -2363,9 +3136,7 @@ function Meetings({
   meetings: any[];
   post: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       <section className="card card-pad">
@@ -2383,12 +3154,15 @@ function Meetings({
           <input
             className="input"
             placeholder="Meeting title"
-            value={meeting.title}
+            value={
+              meeting.title
+            }
             onChange={e =>
               setMeeting({
                 ...meeting,
                 title:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2396,12 +3170,15 @@ function Meetings({
           <input
             className="input"
             type="datetime-local"
-            value={meeting.startTime}
+            value={
+              meeting.startTime
+            }
             onChange={e =>
               setMeeting({
                 ...meeting,
                 startTime:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2409,12 +3186,15 @@ function Meetings({
           <input
             className="input"
             placeholder="Zoom URL"
-            value={meeting.zoomUrl}
+            value={
+              meeting.zoomUrl
+            }
             onChange={e =>
               setMeeting({
                 ...meeting,
                 zoomUrl:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2422,17 +3202,21 @@ function Meetings({
           <textarea
             className="input"
             placeholder="Agenda"
-            value={meeting.agenda}
+            value={
+              meeting.agenda
+            }
             onChange={e =>
               setMeeting({
                 ...meeting,
                 agenda:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -2443,7 +3227,9 @@ function Meetings({
             }
           >
             <CalendarDays
-              size={14}
+              size={
+                14
+              }
             />
             Publish meeting
           </button>
@@ -2464,17 +3250,19 @@ function Meetings({
 
         {meetings.map(
           (m: any) => (
-
             <div
               className="admin-row"
-              key={m.id}
+              key={
+                m.id
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 10
+                    fontSize:
+                      10
                   }}
                 >
                   {m.title}
@@ -2483,7 +3271,8 @@ function Meetings({
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
                   {new Date(
@@ -2493,12 +3282,12 @@ function Meetings({
 
               </div>
 
-              <div
-                className="action-row"
-              >
+              <div className="action-row">
 
                 <a
-                  href={m.zoomUrl}
+                  href={
+                    m.zoomUrl
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="tiny-btn"
@@ -2507,6 +3296,7 @@ function Meetings({
                 </a>
 
                 <button
+                  type="button"
                   className="tiny-btn danger"
                   onClick={() =>
                     post(
@@ -2527,8 +3317,19 @@ function Meetings({
               </div>
 
             </div>
-
           )
+        )}
+
+        {!meetings.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No meetings published yet.
+          </p>
         )}
 
       </section>
@@ -2553,18 +3354,35 @@ function Events({
   events: any[];
   post: any;
 }) {
-
   const fields = [
-    ['title', 'Title'],
-    ['date', 'Date'],
-    ['location', 'Location'],
-    ['description', 'Description'],
-    ['trailerUrl', 'Trailer URL'],
+    [
+      'title',
+      'Title'
+    ],
+    [
+      'date',
+      'Date'
+    ],
+    [
+      'location',
+      'Location'
+    ],
+    [
+      'description',
+      'Description'
+    ],
+    [
+      'trailerUrl',
+      'Trailer URL'
+    ],
     [
       'aftermovieUrl',
       'After Movie URL'
     ],
-    ['albumUrl', 'Album URL'],
+    [
+      'albumUrl',
+      'Album URL'
+    ],
     [
       'coverUrl',
       'Cover image URL'
@@ -2572,7 +3390,6 @@ function Events({
   ];
 
   return (
-
     <div className="grid-2">
 
       <section className="card card-pad">
@@ -2588,19 +3405,29 @@ function Events({
         <div className="form">
 
           {fields.map(
-            ([k, l]) => (
+            ([
+              k,
+              l
+            ]) => (
               <input
-                key={k}
+                key={
+                  k
+                }
                 className="input"
-                placeholder={l}
+                placeholder={
+                  l
+                }
                 value={
-                  event[k]
+                  event[
+                    k
+                  ]
                 }
                 onChange={e =>
                   setEvent({
                     ...event,
                     [k]:
-                      e.target.value
+                      e.target
+                        .value
                   })
                 }
               />
@@ -2608,6 +3435,7 @@ function Events({
           )}
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -2617,7 +3445,9 @@ function Events({
               )
             }
           >
-            <Plus size={14} />
+            <Plus
+              size={14}
+            />
             Publish event
           </button>
 
@@ -2637,17 +3467,19 @@ function Events({
 
         {events.map(
           (e: any) => (
-
             <div
               className="admin-row"
-              key={e.id}
+              key={
+                e.id
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 10
+                    fontSize:
+                      10
                   }}
                 >
                   {e.title}
@@ -2656,16 +3488,19 @@ function Events({
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
-                  {e.date} ·
+                  {e.date}
+                  {' · '}
                   {e.location}
                 </div>
 
               </div>
 
               <button
+                type="button"
                 className="tiny-btn danger"
                 onClick={() =>
                   post(
@@ -2684,8 +3519,19 @@ function Events({
               </button>
 
             </div>
-
           )
+        )}
+
+        {!events.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No events published yet.
+          </p>
         )}
 
       </section>
@@ -2716,9 +3562,7 @@ function Community({
   post: any;
   act: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       {/* COMMENTS */}
@@ -2737,50 +3581,58 @@ function Community({
           .slice(0, 50)
           .map(
             (c: any) => (
-
               <div
                 className="admin-row"
-                key={c.id}
+                key={
+                  c.id
+                }
               >
 
                 <div>
 
                   <strong
                     style={{
-                      fontSize: 9
+                      fontSize:
+                        9
                     }}
                   >
-                    {c.author}
+                    {
+                      c.author
+                    }
                   </strong>
 
                   <div
                     style={{
-                      fontSize: 10,
-                      color: '#bbb'
+                      fontSize:
+                        10,
+                      color:
+                        '#bbb'
                     }}
                   >
-                    {c.body}
+                    {
+                      c.body
+                    }
                   </div>
 
-                  <small
-                    className="soft"
-                  >
-                    On {c.mediaTitle}
+                  <small className="soft">
+                    On {
+                      c.mediaTitle
+                    }
                   </small>
 
                 </div>
 
-                <div
-                  className="action-row"
-                >
+                <div className="action-row">
 
                   <button
+                    type="button"
                     className="tiny-btn"
                     onClick={() =>
                       post(
                         '/api/admin/comments',
                         {
-                          id: c.id,
+                          id:
+                            c.id,
                           action:
                             c.status ===
                             'hidden'
@@ -2794,58 +3646,77 @@ function Community({
                       )
                     }
                   >
-
                     {c.status ===
-                    'hidden'
-                      ? (
-                        <Check
-                          size={10}
-                        />
-                      )
-                      : (
-                        <EyeOff
-                          size={10}
-                        />
-                      )}
-
+                    'hidden' ? (
+                      <Check
+                        size={
+                          10
+                        }
+                      />
+                    ) : (
+                      <EyeOff
+                        size={
+                          10
+                        }
+                      />
+                    )}
                   </button>
 
                   <button
+                    type="button"
                     className="tiny-btn danger"
                     onClick={() =>
                       act(
                         () =>
-                          fetch(
+                          api(
                             '/api/admin/comments',
                             {
                               method:
                                 'POST',
-                              headers: {
-                                'Content-Type':
-                                  'application/json'
-                              },
+                              headers:
+                                {
+                                  'Content-Type':
+                                    'application/json'
+                                },
                               body:
-                                JSON.stringify({
-                                  id:
-                                    c.id,
-                                  action:
-                                    'delete'
-                                })
+                                JSON.stringify(
+                                  {
+                                    id:
+                                      c.id,
+                                    action:
+                                      'delete'
+                                  }
+                                )
                             }
                           ),
                         'Comment deleted.'
                       )
                     }
                   >
-                    <Trash2 size={10} />
+                    <Trash2
+                      size={
+                        10
+                      }
+                    />
                   </button>
 
                 </div>
 
               </div>
-
             )
           )}
+
+        {!comments.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No comments yet.
+          </p>
+        )}
 
       </section>
 
@@ -2873,7 +3744,8 @@ function Community({
               setAnnouncement({
                 ...announcement,
                 title:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
@@ -2888,12 +3760,14 @@ function Community({
               setAnnouncement({
                 ...announcement,
                 body:
-                  e.target.value
+                  e.target
+                    .value
               })
             }
           />
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -2912,17 +3786,19 @@ function Community({
 
         {announcements.map(
           (a: any) => (
-
             <div
               className="admin-row"
-              key={a.id}
+              key={
+                a.id
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 10
+                    fontSize:
+                      10
                   }}
                 >
                   {a.title}
@@ -2931,7 +3807,8 @@ function Community({
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
                   {a.active
@@ -2941,11 +3818,10 @@ function Community({
 
               </div>
 
-              <div
-                className="action-row"
-              >
+              <div className="action-row">
 
                 <button
+                  type="button"
                   className="tiny-btn"
                   onClick={() =>
                     post(
@@ -2966,6 +3842,7 @@ function Community({
                 </button>
 
                 <button
+                  type="button"
                   className="tiny-btn danger"
                   onClick={() =>
                     post(
@@ -2986,7 +3863,6 @@ function Community({
               </div>
 
             </div>
-
           )
         )}
 
@@ -3000,27 +3876,33 @@ function Community({
           .slice(0, 30)
           .map(
             (s: any) => (
-
               <div
                 className="admin-row"
-                key={s.id}
+                key={
+                  s.id
+                }
               >
 
                 <span
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
-                  {s.email}
+                  {
+                    s.email
+                  }
                 </span>
 
                 <button
+                  type="button"
                   className="tiny-btn danger"
                   onClick={() =>
                     post(
                       '/api/admin/subscribers',
                       {
-                        id: s.id,
+                        id:
+                          s.id,
                         action:
                           'delete'
                       },
@@ -3032,7 +3914,6 @@ function Community({
                 </button>
 
               </div>
-
             )
           )}
 
@@ -3058,17 +3939,21 @@ function Chat({
 }: {
   threads: any[];
   messages: any[];
-  selected: number | null;
-  setSelected:
-    (n: number | null) => void;
+  selected:
+    | number
+    | null;
+  setSelected: (
+    n:
+      | number
+      | null
+  ) => void;
   text: string;
-  setText:
-    (s: string) => void;
+  setText: (
+    s: string
+  ) => void;
   post: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       {/* THREADS */}
@@ -3085,43 +3970,66 @@ function Chat({
 
         {threads.map(
           (t: any) => (
-
             <button
-              key={t.id}
+              key={
+                t.id
+              }
+              type="button"
               className="chat-thread"
               onClick={() =>
                 setSelected(
-                  Number(t.id)
+                  Number(
+                    t.id
+                  )
                 )
               }
               style={{
-                width: '100%',
-                textAlign: 'left',
-                color: 'inherit'
+                width:
+                  '100%',
+                textAlign:
+                  'left',
+                color:
+                  'inherit'
               }}
             >
 
               <strong
                 style={{
-                  fontSize: 10
+                  fontSize:
+                    10
                 }}
               >
-                {t.student}
+                {
+                  t.student
+                }
               </strong>
 
               <div
                 className="soft"
                 style={{
-                  fontSize: 8
+                  fontSize:
+                    8
                 }}
               >
-                {t.email} ·
+                {t.email}
+                {' · '}
                 {t.status}
               </div>
 
             </button>
-
           )
+        )}
+
+        {!threads.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No support conversations.
+          </p>
         )}
 
       </section>
@@ -3135,29 +4043,31 @@ function Chat({
         </div>
 
         <h3>
-
           {selected
             ? threads.find(
                 (t: any) =>
-                  Number(t.id) ===
-                  Number(selected)
+                  Number(
+                    t.id
+                  ) ===
+                  Number(
+                    selected
+                  )
               )?.student ||
               'Student'
             : 'Select a student'}
-
         </h3>
 
         {selected ? (
-
           <>
 
             <div className="chat-list">
 
               {messages.map(
                 (m: any) => (
-
                   <div
-                    key={m.id}
+                    key={
+                      m.id
+                    }
                     className={
                       `chat-msg ${
                         m.senderRole ===
@@ -3167,14 +4077,18 @@ function Chat({
                       }`
                     }
                   >
-
-                    {m.message}
+                    {
+                      m.message
+                    }
 
                     <div
                       style={{
-                        fontSize: 7,
-                        opacity: 0.6,
-                        marginTop: 4
+                        fontSize:
+                          7,
+                        opacity:
+                          0.6,
+                        marginTop:
+                          4
                       }}
                     >
                       {new Date(
@@ -3183,21 +4097,19 @@ function Chat({
                     </div>
 
                   </div>
-
                 )
               )}
 
             </div>
 
-            {/* CHAT FORM */}
-
             <form
               className="chat-compose"
               onSubmit={e => {
-
                 e.preventDefault();
 
-                if (!text.trim()) {
+                if (
+                  !text.trim()
+                ) {
                   return;
                 }
 
@@ -3213,34 +4125,42 @@ function Chat({
                 );
 
                 setText('');
-
               }}
             >
 
               <input
                 className="input"
-                value={text}
+                value={
+                  text
+                }
                 onChange={e =>
                   setText(
-                    e.target.value
+                    e.target
+                      .value
                   )
                 }
                 placeholder="Reply to student…"
               />
 
               <button
-                className="btn primary"
                 type="submit"
+                className="btn primary"
               >
-                <Send size={13} />
+                <Send
+                  size={
+                    13
+                  }
+                />
               </button>
 
             </form>
 
             <button
+              type="button"
               className="tiny-btn"
               style={{
-                marginTop: 8
+                marginTop:
+                  8
               }}
               onClick={() =>
                 post(
@@ -3248,7 +4168,8 @@ function Chat({
                   {
                     threadId:
                       selected,
-                    close: true
+                    close:
+                      true
                   },
                   'Chat closed.'
                 )
@@ -3258,19 +4179,17 @@ function Chat({
             </button>
 
           </>
-
         ) : (
-
           <p
             className="soft"
             style={{
-              fontSize: 10
+              fontSize:
+                10
             }}
           >
             Select a conversation
             to reply.
           </p>
-
         )}
 
       </section>
@@ -3299,9 +4218,7 @@ function Board({
   post: any;
   act: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       {/* BOARD LIST */}
@@ -3318,29 +4235,36 @@ function Board({
 
         {board.map(
           (b: any) => (
-
             <div
               className="admin-row"
-              key={b.id}
+              key={
+                b.id
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 10
+                    fontSize:
+                      10
                   }}
                 >
-                  {b.position}
+                  {
+                    b.position
+                  }
                 </strong>
 
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
-                  {b.person_name}
+                  {
+                    b.person_name
+                  }
 
                   {b.user_id
                     ? ' · linked to member'
@@ -3350,6 +4274,7 @@ function Board({
               </div>
 
               <button
+                type="button"
                 className="tiny-btn danger"
                 onClick={() =>
                   post(
@@ -3368,8 +4293,19 @@ function Board({
               </button>
 
             </div>
-
           )
+        )}
+
+        {!board.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No board positions yet.
+          </p>
         )}
 
       </section>
@@ -3437,7 +4373,6 @@ function Board({
             </option>
 
             {users
-
               .filter(
                 (u: any) =>
                   u.status ===
@@ -3445,25 +4380,24 @@ function Board({
                   u.role ===
                     'student'
               )
-
               .map(
                 (u: any) => (
-
                   <option
-                    key={u.id}
-                    value={u.id}
-                  >
-                    {
-                      u.fullName ||
-                      u.full_name ||
-                      'Student'
+                    key={
+                      u.id
                     }
-
+                    value={
+                      u.id
+                    }
+                  >
+                    {u.fullName ||
+                      u.full_name ||
+                      'Student'}
                     {' · '}
-
-                    {u.email}
+                    {
+                      u.email
+                    }
                   </option>
-
                 )
               )}
 
@@ -3486,6 +4420,7 @@ function Board({
           />
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -3522,9 +4457,7 @@ function SettingsPanel({
   setSetting: any;
   post: any;
 }) {
-
   return (
-
     <div className="grid-2">
 
       {/* FORM */}
@@ -3572,6 +4505,7 @@ function SettingsPanel({
           />
 
           <button
+            type="button"
             className="btn primary"
             onClick={() =>
               post(
@@ -3591,7 +4525,8 @@ function SettingsPanel({
         <p
           className="soft"
           style={{
-            fontSize: 9
+            fontSize:
+              9
           }}
         >
           Suggested keys:
@@ -3619,38 +4554,56 @@ function SettingsPanel({
 
         {settings.map(
           (s: any) => (
-
             <div
               className="admin-row"
-              key={s.key}
+              key={
+                s.key
+              }
             >
 
               <div>
 
                 <strong
                   style={{
-                    fontSize: 9
+                    fontSize:
+                      9
                   }}
                 >
-                  {s.key}
+                  {
+                    s.key
+                  }
                 </strong>
 
                 <div
                   className="soft"
                   style={{
-                    fontSize: 9,
+                    fontSize:
+                      9,
                     wordBreak:
                       'break-all'
                   }}
                 >
-                  {s.value}
+                  {
+                    s.value
+                  }
                 </div>
 
               </div>
 
             </div>
-
           )
+        )}
+
+        {!settings.length && (
+          <p
+            className="soft"
+            style={{
+              fontSize:
+                10
+            }}
+          >
+            No settings saved yet.
+          </p>
         )}
 
       </section>

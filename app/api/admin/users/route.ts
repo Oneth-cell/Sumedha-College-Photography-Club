@@ -1,55 +1,10 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { pool, query } from "@/lib/postgres";
 
 export const dynamic = "force-dynamic";
 
 type UserRow = Record<string, any>;
-
-
-/* =========================================================
-   DATABASE HELPERS
-========================================================= */
-
-function tableExists(
-  tableName: string
-): boolean {
-  const row = db
-    .prepare(`
-      SELECT name
-      FROM sqlite_master
-      WHERE type = 'table'
-        AND name = ?
-      LIMIT 1
-    `)
-    .get(tableName) as
-    | { name?: string }
-    | undefined;
-
-  return Boolean(row?.name);
-}
-
-
-function columnExists(
-  tableName: string,
-  columnName: string
-): boolean {
-  if (!tableExists(tableName)) {
-    return false;
-  }
-
-  const rows = db
-    .prepare(
-      `PRAGMA table_info(${tableName})`
-    )
-    .all() as Array<{
-      name: string;
-    }>;
-
-  return rows.some(
-    row => row.name === columnName
-  );
-}
-
 
 /* =========================================================
    VALUE HELPERS
@@ -75,7 +30,6 @@ function getValue(
   return fallback;
 }
 
-
 function getStudentName(
   user: UserRow
 ): string {
@@ -87,7 +41,7 @@ function getStudentName(
       "student_name",
       "studentName",
       "display_name",
-      "name"
+      "name",
     ]
   );
 
@@ -97,19 +51,12 @@ function getStudentName(
 
   const firstName = getValue(
     user,
-    [
-      "first_name",
-      "firstName"
-    ]
+    ["first_name", "firstName"]
   );
 
   const surname = getValue(
     user,
-    [
-      "surname",
-      "last_name",
-      "lastName"
-    ]
+    ["surname", "last_name", "lastName"]
   );
 
   const combined =
@@ -130,13 +77,12 @@ function getStudentName(
       .replace(/[._-]+/g, " ")
       .replace(
         /\b\w/g,
-        char => char.toUpperCase()
+        (char) => char.toUpperCase()
       );
   }
 
   return "Student";
 }
-
 
 function getSurname(
   user: UserRow
@@ -146,12 +92,11 @@ function getSurname(
     [
       "surname",
       "last_name",
-      "lastName"
+      "lastName",
     ],
     "Not provided"
   );
 }
-
 
 function getStudentId(
   user: UserRow
@@ -160,12 +105,11 @@ function getStudentId(
     user,
     [
       "student_id",
-      "studentId"
+      "studentId",
     ],
     "Not provided"
   );
 }
-
 
 function getGrade(
   user: UserRow
@@ -175,12 +119,11 @@ function getGrade(
     [
       "grade",
       "student_grade",
-      "grade_name"
+      "grade_name",
     ],
     "Not provided"
   );
 }
-
 
 function getClassName(
   user: UserRow
@@ -191,12 +134,11 @@ function getClassName(
       "class_name",
       "className",
       "class",
-      "student_class"
+      "student_class",
     ],
     "Not provided"
   );
 }
-
 
 function getParentPhone(
   user: UserRow
@@ -207,12 +149,11 @@ function getParentPhone(
       "parent_phone",
       "parentPhone",
       "parent_guardian_phone",
-      "guardian_phone"
+      "guardian_phone",
     ],
     "Not provided"
   );
 }
-
 
 function getAddress(
   user: UserRow
@@ -221,12 +162,11 @@ function getAddress(
     user,
     [
       "address",
-      "home_address"
+      "home_address",
     ],
     "Not provided"
   );
 }
-
 
 function getMembershipType(
   user: UserRow
@@ -235,12 +175,11 @@ function getMembershipType(
     user,
     [
       "membership_type",
-      "membershipType"
+      "membershipType",
     ],
     "member"
   ).toLowerCase();
 }
-
 
 /* =========================================================
    FORMAT USER
@@ -295,19 +234,19 @@ function formatUser(
 
     address,
 
-    email:
-      getValue(
-        user,
-        ["email"]
-      ),
+    email: getValue(
+      user,
+      ["email"]
+    ),
 
     pfp_path:
       getValue(
         user,
         [
+          "pfp_url",
           "pfp_path",
           "profile_picture",
-          "profilePicture"
+          "profilePicture",
         ]
       ) || null,
 
@@ -336,10 +275,9 @@ function formatUser(
     updated_at:
       user.updated_at ?? null,
 
-    boardPosition: ""
+    boardPosition: "",
   };
 }
-
 
 /* =========================================================
    GET MEMBER DIRECTORY
@@ -347,195 +285,108 @@ function formatUser(
 
 export async function GET() {
   try {
-    if (!tableExists("users")) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "The users table does not exist."
-        },
-        {
-          status: 500
-        }
-      );
-    }
+    await requireAdmin();
 
-    /*
-     * Only select columns that actually exist.
-     * This prevents SQLite errors caused by optional
-     * columns such as pfp_path or timestamps.
-     */
-
-    const possibleColumns = [
-      "id",
-      "full_name",
-      "surname",
-      "email",
-      "student_id",
-      "grade",
-      "class_name",
-      "parent_phone",
-      "address",
-      "role",
-      "status",
-      "membership_type",
-      "pfp_path",
-      "created_at",
-      "updated_at"
-    ];
-
-    const selectedColumns =
-      possibleColumns.filter(
-        column =>
-          column === "id" ||
-          columnExists(
-            "users",
-            column
-          )
-      );
-
-    const users = db
-      .prepare(`
-        SELECT ${selectedColumns.join(", ")}
+    const usersResult =
+      await query<UserRow>(
+        `
+        SELECT
+          id,
+          full_name,
+          surname,
+          email,
+          student_id,
+          grade,
+          class_name,
+          parent_phone,
+          address,
+          pfp_url,
+          role,
+          status,
+          membership_type,
+          board_position,
+          board_order,
+          verification_hash,
+          verification_expires,
+          lms_tour_seen,
+          created_at,
+          updated_at
         FROM users
         ORDER BY id DESC
-      `)
-      .all() as UserRow[];
-
-    const formatted =
-      users.map(
-        formatUser
+        `
       );
 
+    const users =
+      usersResult.rows;
+
+    const formatted =
+      users.map(formatUser);
 
     /* =====================================================
        BOARD POSITIONS
     ===================================================== */
 
-    if (
-      tableExists("board_roster")
+    const boardResult =
+      await query<{
+        user_id: number | string | null;
+        position: string;
+        person_name: string;
+        display_order: number | string;
+        active: number | string;
+      }>(
+        `
+        SELECT
+          user_id,
+          position,
+          person_name,
+          display_order,
+          active
+        FROM board_roster
+        WHERE active = 1
+        ORDER BY display_order ASC
+        `
+      );
+
+    const boardRows =
+      boardResult.rows;
+
+    for (
+      const user of formatted
     ) {
+      const board =
+        boardRows.find(
+          (row) =>
+            row.user_id !== null &&
+            Number(row.user_id) ===
+              Number(user.id)
+        );
 
-      /*
-       * Newer schema:
-       * board_roster.user_id
-       */
-
-      if (
-        columnExists(
-          "board_roster",
-          "user_id"
-        )
-      ) {
-
-        const boardColumns =
-          ["user_id"];
-
-        if (
-          columnExists(
-            "board_roster",
-            "position"
-          )
-        ) {
-          boardColumns.push(
-            "position"
-          );
-        }
-
-        const boardRows =
-          db
-            .prepare(`
-              SELECT ${boardColumns.join(", ")}
-              FROM board_roster
-              WHERE user_id IS NOT NULL
-            `)
-            .all() as Array<{
-              user_id: number;
-              position?: string;
-            }>;
-
-        for (
-          const user
-          of formatted
-        ) {
-
-          const board =
-            boardRows.find(
-              row =>
-                Number(
-                  row.user_id
-                ) ===
-                Number(
-                  user.id
-                )
-            );
-
-          if (board) {
-            user.boardPosition =
-              board.position ||
-              "";
-          }
-        }
-
+      if (board) {
+        user.boardPosition =
+          board.position || "";
       } else {
+        const userName =
+          String(user.fullName)
+            .trim()
+            .toLowerCase();
 
-        /*
-         * Current seed schema:
-         * board_roster(position, person_name, display_order)
-         *
-         * There is no user_id, so match the roster
-         * against the student's full name.
-         */
+        const nameMatch =
+          boardRows.find(
+            (row) =>
+              String(
+                row.person_name || ""
+              )
+                .trim()
+                .toLowerCase() ===
+              userName
+          );
 
-        const boardRows =
-          db
-            .prepare(`
-              SELECT
-                position,
-                person_name,
-                display_order
-              FROM board_roster
-              ORDER BY display_order ASC
-            `)
-            .all() as Array<{
-              position: string;
-              person_name: string;
-              display_order?: number;
-            }>;
-
-        for (
-          const user
-          of formatted
-        ) {
-
-          const userName =
-            String(
-              user.fullName
-            )
-              .trim()
-              .toLowerCase();
-
-          const board =
-            boardRows.find(
-              row =>
-                String(
-                  row.person_name ||
-                  ""
-                )
-                  .trim()
-                  .toLowerCase() ===
-                userName
-            );
-
-          if (board) {
-            user.boardPosition =
-              board.position ||
-              "";
-          }
+        if (nameMatch) {
+          user.boardPosition =
+            nameMatch.position || "";
         }
       }
     }
-
 
     return NextResponse.json({
       ok: true,
@@ -545,11 +396,10 @@ export async function GET() {
       data: formatted,
 
       count:
-        formatted.length
+        formatted.length,
     });
 
   } catch (error) {
-
     console.error(
       "ADMIN USERS GET ERROR:",
       error
@@ -568,15 +418,14 @@ export async function GET() {
 
         data: [],
 
-        count: 0
+        count: 0,
       },
       {
-        status: 500
+        status: 500,
       }
     );
   }
 }
-
 
 /* =========================================================
    UPDATE / DELETE USER
@@ -586,6 +435,8 @@ export async function POST(
   req: Request
 ) {
   try {
+    const admin =
+      await requireAdmin();
 
     const body =
       await req.json();
@@ -600,7 +451,6 @@ export async function POST(
         .trim()
         .toLowerCase();
 
-
     /* =====================================================
        VALIDATE USER ID
     ===================================================== */
@@ -613,53 +463,50 @@ export async function POST(
         {
           ok: false,
           error:
-            "Invalid user ID."
+            "Invalid user ID.",
         },
         {
-          status: 400
+          status: 400,
         }
       );
     }
-
 
     /* =====================================================
        FIND USER
     ===================================================== */
 
-    const existing =
-      db
-        .prepare(`
-          SELECT *
-          FROM users
-          WHERE id = ?
-          LIMIT 1
-        `)
-        .get(id) as
-        | UserRow
-        | undefined;
+    const existingResult =
+      await query<UserRow>(
+        `
+        SELECT *
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [id]
+      );
 
+    const existing =
+      existingResult.rows[0];
 
     if (!existing) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "User not found."
+            "User not found.",
         },
         {
-          status: 404
+          status: 404,
         }
       );
     }
-
 
     /* =====================================================
        DELETE USER
     ===================================================== */
 
-    if (
-      action === "delete"
-    ) {
+    if (action === "delete") {
 
       const role =
         getValue(
@@ -668,181 +515,220 @@ export async function POST(
           "student"
         ).toLowerCase();
 
-
       /*
        * Protect administrator accounts.
        */
 
-      if (
-        role === "admin"
-      ) {
+      if (role === "admin") {
         return NextResponse.json(
           {
             ok: false,
             error:
-              "Administrator accounts cannot be deleted from the member directory."
+              "Administrator accounts cannot be deleted from the member directory.",
           },
           {
-            status: 403
+            status: 403,
           }
         );
       }
 
+      const client =
+        await pool.connect();
 
       try {
+        await client.query(
+          "BEGIN"
+        );
 
-        const deleteUser =
-          db.transaction(
-            (
-              userId: number
-            ) => {
+        /*
+         * Remove board roster relation.
+         */
+        await client.query(
+          `
+          DELETE FROM board_roster
+          WHERE user_id = $1
+          `,
+          [id]
+        );
 
-              /*
-               * Remove board relation.
-               */
+        /*
+         * If an old name-based board row
+         * exists, remove that too.
+         */
+        const personName =
+          `${existing.full_name || ""} ${existing.surname || ""}`
+            .trim();
 
-              if (
-                tableExists(
-                  "board_roster"
-                )
-              ) {
+        if (personName) {
+          await client.query(
+            `
+            DELETE FROM board_roster
+            WHERE LOWER(person_name) = LOWER($1)
+            `,
+            [personName]
+          );
+        }
 
-                if (
-                  columnExists(
-                    "board_roster",
-                    "user_id"
-                  )
-                ) {
+        /*
+         * Remove chat messages sent by the user.
+         * PostgreSQL schema uses sender_user_id.
+         */
+        await client.query(
+          `
+          DELETE FROM chat_messages
+          WHERE sender_user_id = $1
+          `,
+          [id]
+        );
 
-                  db.prepare(`
-                    DELETE FROM board_roster
-                    WHERE user_id = ?
-                  `).run(userId);
+        /*
+         * Remove the user's chat threads.
+         */
+        await client.query(
+          `
+          DELETE FROM chat_threads
+          WHERE user_id = $1
+          `,
+          [id]
+        );
 
-                } else if (
-                  columnExists(
-                    "board_roster",
-                    "person_name"
-                  )
-                ) {
+        /*
+         * Remove task progress.
+         */
+        await client.query(
+          `
+          DELETE FROM task_progress
+          WHERE user_id = $1
+          `,
+          [id]
+        );
 
-                  const deletedUser =
-                    db
-                      .prepare(`
-                        SELECT
-                          full_name,
-                          surname
-                        FROM users
-                        WHERE id = ?
-                      `)
-                      .get(userId) as
-                      | {
-                          full_name?: string;
-                          surname?: string;
-                        }
-                      | undefined;
-
-                  const personName =
-                    `${deletedUser?.full_name || ""} ${deletedUser?.surname || ""}`
-                      .trim();
-
-                  if (personName) {
-                    db.prepare(`
-                      DELETE FROM board_roster
-                      WHERE LOWER(person_name) = LOWER(?)
-                    `).run(
-                      personName
-                    );
-                  }
-                }
-              }
-
-
-              /*
-               * Chat messages
-               */
-
-              if (
-                tableExists(
-                  "chat_messages"
-                ) &&
-                columnExists(
-                  "chat_messages",
-                  "user_id"
-                )
-              ) {
-                db.prepare(`
-                  DELETE FROM chat_messages
-                  WHERE user_id = ?
-                `).run(userId);
-              }
-
-
-              /*
-               * Chat threads
-               */
-
-              if (
-                tableExists(
-                  "chat_threads"
-                ) &&
-                columnExists(
-                  "chat_threads",
-                  "user_id"
-                )
-              ) {
-                db.prepare(`
-                  DELETE FROM chat_threads
-                  WHERE user_id = ?
-                `).run(userId);
-              }
-
-
-              /*
-               * Onboarding
-               */
-
-              if (
-                tableExists(
-                  "onboarding"
-                ) &&
-                columnExists(
-                  "onboarding",
-                  "user_id"
-                )
-              ) {
-                db.prepare(`
-                  DELETE FROM onboarding
-                  WHERE user_id = ?
-                `).run(userId);
-              }
-
-
-              /*
-               * Finally delete user.
-               */
-
-              const result =
-                db
-                  .prepare(`
-                    DELETE FROM users
-                    WHERE id = ?
-                  `)
-                  .run(userId);
-
-              if (
-                result.changes !== 1
-              ) {
-                throw new Error(
-                  "User could not be deleted."
-                );
-              }
-            }
+        /*
+         * Remove user's media-related records.
+         */
+        const mediaResult =
+          await client.query<{
+            id: number | string;
+          }>(
+            `
+            SELECT id
+            FROM media_items
+            WHERE user_id = $1
+            `,
+            [id]
           );
 
-        deleteUser(id);
+        const mediaIds =
+          mediaResult.rows.map(
+            (row) =>
+              Number(row.id)
+          );
+
+        if (mediaIds.length > 0) {
+          await client.query(
+            `
+            DELETE FROM media_variants
+            WHERE media_id = ANY($1::bigint[])
+            `,
+            [mediaIds]
+          );
+
+          await client.query(
+            `
+            DELETE FROM media_likes
+            WHERE media_id = ANY($1::bigint[])
+            `,
+            [mediaIds]
+          );
+
+          await client.query(
+            `
+            DELETE FROM media_ratings
+            WHERE media_id = ANY($1::bigint[])
+            `,
+            [mediaIds]
+          );
+
+          await client.query(
+            `
+            DELETE FROM media_comments
+            WHERE media_id = ANY($1::bigint[])
+            `,
+            [mediaIds]
+          );
+
+          await client.query(
+            `
+            DELETE FROM media_items
+            WHERE id = ANY($1::bigint[])
+            `,
+            [mediaIds]
+          );
+        }
+
+        /*
+         * Remove submissions owned by the user.
+         */
+        await client.query(
+          `
+          DELETE FROM submissions
+          WHERE user_id = $1
+          `,
+          [id]
+        );
+
+        /*
+         * Remove password reset records.
+         */
+        await client.query(
+          `
+          DELETE FROM password_resets
+          WHERE user_id = $1
+          `,
+          [id]
+        );
+
+        /*
+         * Audit logs should survive the account deletion,
+         * but the actor reference is cleared.
+         */
+        await client.query(
+          `
+          UPDATE audit_logs
+          SET actor_user_id = NULL
+          WHERE actor_user_id = $1
+          `,
+          [id]
+        );
+
+        /*
+         * Finally remove the user.
+         */
+        const deleteResult =
+          await client.query(
+            `
+            DELETE FROM users
+            WHERE id = $1
+            `,
+            [id]
+          );
+
+        if (
+          deleteResult.rowCount !== 1
+        ) {
+          throw new Error(
+            "User could not be deleted."
+          );
+        }
+
+        await client.query(
+          "COMMIT"
+        );
 
       } catch (deleteError) {
+        await client.query(
+          "ROLLBACK"
+        );
 
         console.error(
           "ADMIN USER DELETE ERROR:",
@@ -855,14 +741,16 @@ export async function POST(
             error:
               deleteError instanceof Error
                 ? deleteError.message
-                : "Could not delete this user. Related records may still exist."
+                : "Could not delete this user.",
           },
           {
-            status: 409
+            status: 409,
           }
         );
-      }
 
+      } finally {
+        client.release();
+      }
 
       return NextResponse.json({
         ok: true,
@@ -871,10 +759,9 @@ export async function POST(
         id,
 
         message:
-          "User deleted successfully."
+          "User deleted successfully.",
       });
     }
-
 
     /* =====================================================
        UPDATE MEMBERSHIP
@@ -883,8 +770,8 @@ export async function POST(
     const status =
       String(
         body.status ??
-        existing.status ??
-        "approved"
+          existing.status ??
+          "approved"
       )
         .trim()
         .toLowerCase();
@@ -892,9 +779,9 @@ export async function POST(
     const membershipType =
       String(
         body.membershipType ??
-        body.membership_type ??
-        existing.membership_type ??
-        "member"
+          body.membership_type ??
+          existing.membership_type ??
+          "member"
       )
         .trim()
         .toLowerCase();
@@ -902,10 +789,9 @@ export async function POST(
     const boardPosition =
       String(
         body.boardPosition ??
-        body.board_position ??
-        ""
+          body.board_position ??
+          ""
       ).trim();
-
 
     /* =====================================================
        VALIDATION
@@ -915,32 +801,28 @@ export async function POST(
       "approved",
       "pending",
       "suspended",
-      "rejected"
+      "rejected",
     ];
 
     const validMembershipTypes = [
       "member",
-      "board"
+      "board",
     ];
 
-
     if (
-      !validStatuses.includes(
-        status
-      )
+      !validStatuses.includes(status)
     ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "Invalid status."
+            "Invalid status.",
         },
         {
-          status: 400
+          status: 400,
         }
       );
     }
-
 
     if (
       !validMembershipTypes.includes(
@@ -951,493 +833,320 @@ export async function POST(
         {
           ok: false,
           error:
-            "Invalid membership type."
+            "Invalid membership type.",
         },
         {
-          status: 400
+          status: 400,
         }
       );
     }
-
 
     /* =====================================================
        UPDATE USERS TABLE
     ===================================================== */
 
-    db.prepare(`
-      UPDATE users
-      SET
-        status = ?,
-        membership_type = ?
-      WHERE id = ?
-    `).run(
-      status,
-      membershipType,
-      id
-    );
+    const client =
+      await pool.connect();
 
+    try {
+      await client.query(
+        "BEGIN"
+      );
 
-    /* =====================================================
-       BOARD MANAGEMENT
-    ===================================================== */
+      await client.query(
+        `
+        UPDATE users
+        SET
+          status = $1,
+          membership_type = $2,
+          board_position = $3,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4
+        `,
+        [
+          status,
+          membershipType,
+          boardPosition || null,
+          id,
+        ]
+      );
 
-    if (
-      tableExists(
-        "board_roster"
-      )
-    ) {
+      /* ===================================================
+         BOARD MANAGEMENT
+      =================================================== */
 
-      /*
-       * ---------------------------------------------------
-       * SCHEMA WITH user_id
-       * ---------------------------------------------------
-       */
+      const personName =
+        getStudentName(existing);
 
       if (
-        columnExists(
-          "board_roster",
-          "user_id"
-        )
+        membershipType === "board" &&
+        boardPosition
       ) {
 
+        /*
+         * Check whether this user already
+         * has a board roster record.
+         */
+        const existingBoardResult =
+          await client.query<{
+            id: number | string;
+          }>(
+            `
+            SELECT id
+            FROM board_roster
+            WHERE user_id = $1
+            LIMIT 1
+            `,
+            [id]
+          );
+
         const existingBoard =
-          db
-            .prepare(`
-              SELECT id
-              FROM board_roster
-              WHERE user_id = ?
-              LIMIT 1
-            `)
-            .get(id) as
-            | { id: number }
-            | undefined;
+          existingBoardResult.rows[0];
 
+        /*
+         * Check whether another board member
+         * currently owns the selected position.
+         */
+        const existingPositionResult =
+          await client.query<{
+            id: number | string;
+            user_id: number | string | null;
+          }>(
+            `
+            SELECT id, user_id
+            FROM board_roster
+            WHERE LOWER(position) = LOWER($1)
+            LIMIT 1
+            `,
+            [boardPosition]
+          );
 
-        if (
-          membershipType ===
-            "board" &&
-          boardPosition
+        const existingPosition =
+          existingPositionResult.rows[0];
+
+        const displayOrder =
+          Number(
+            body.displayOrder ?? 999
+          );
+
+        if (existingBoard) {
+
+          /*
+           * Update this user's existing row.
+           */
+          await client.query(
+            `
+            UPDATE board_roster
+            SET
+              position = $1,
+              person_name = $2,
+              display_order = $3,
+              active = 1
+            WHERE id = $4
+            `,
+            [
+              boardPosition,
+              personName,
+              displayOrder,
+              Number(existingBoard.id),
+            ]
+          );
+
+          /*
+           * If the chosen position belonged
+           * to another row, remove that duplicate.
+           */
+          if (
+            existingPosition &&
+            Number(existingPosition.id) !==
+              Number(existingBoard.id)
+          ) {
+            await client.query(
+              `
+              DELETE FROM board_roster
+              WHERE id = $1
+              `,
+              [
+                Number(
+                  existingPosition.id
+                ),
+              ]
+            );
+          }
+
+        } else if (
+          existingPosition
         ) {
 
-          const displayOrder =
-            Number(
-              body.displayOrder ??
-              999
-            );
-
-
-          if (
-            existingBoard
-          ) {
-
-            if (
-              columnExists(
-                "board_roster",
-                "display_order"
-              )
-            ) {
-
-              db.prepare(`
-                UPDATE board_roster
-                SET
-                  position = ?,
-                  person_name = ?,
-                  display_order = ?
-                WHERE id = ?
-              `).run(
-                boardPosition,
-                getStudentName(
-                  existing
-                ),
-                displayOrder,
-                existingBoard.id
-              );
-
-            } else {
-
-              db.prepare(`
-                UPDATE board_roster
-                SET
-                  position = ?,
-                  person_name = ?
-                WHERE id = ?
-              `).run(
-                boardPosition,
-                getStudentName(
-                  existing
-                ),
-                existingBoard.id
-              );
-            }
-
-          } else {
-
-            if (
-              columnExists(
-                "board_roster",
-                "display_order"
-              )
-            ) {
-
-              db.prepare(`
-                INSERT INTO board_roster
-                (
-                  position,
-                  person_name,
-                  user_id,
-                  display_order
-                )
-                VALUES (?, ?, ?, ?)
-              `).run(
-                boardPosition,
-                getStudentName(
-                  existing
-                ),
-                id,
-                displayOrder
-              );
-
-            } else {
-
-              db.prepare(`
-                INSERT INTO board_roster
-                (
-                  position,
-                  person_name,
-                  user_id
-                )
-                VALUES (?, ?, ?)
-              `).run(
-                boardPosition,
-                getStudentName(
-                  existing
-                ),
-                id
-              );
-            }
-          }
+          /*
+           * Reassign the existing position
+           * to this user.
+           */
+          await client.query(
+            `
+            UPDATE board_roster
+            SET
+              user_id = $1,
+              position = $2,
+              person_name = $3,
+              display_order = $4,
+              active = 1
+            WHERE id = $5
+            `,
+            [
+              id,
+              boardPosition,
+              personName,
+              displayOrder,
+              Number(
+                existingPosition.id
+              ),
+            ]
+          );
 
         } else {
 
           /*
-           * Student is a normal Member.
-           * Remove existing Board link.
+           * Create a new board roster row.
            */
-
-          db.prepare(`
-            DELETE FROM board_roster
-            WHERE user_id = ?
-          `).run(id);
+          await client.query(
+            `
+            INSERT INTO board_roster
+            (
+              position,
+              person_name,
+              user_id,
+              display_order,
+              active
+            )
+            VALUES
+            ($1, $2, $3, $4, 1)
+            `,
+            [
+              boardPosition,
+              personName,
+              id,
+              displayOrder,
+            ]
+          );
         }
-
 
       } else {
 
         /*
-         * ---------------------------------------------------
-         * CURRENT PROJECT SCHEMA
-         *
-         * board_roster:
-         * position
-         * person_name
-         * display_order
-         * ---------------------------------------------------
+         * User is no longer a board member.
          */
+        await client.query(
+          `
+          DELETE FROM board_roster
+          WHERE user_id = $1
+          `,
+          [id]
+        );
 
-        const personName =
-          getStudentName(
-            existing
-          );
-
-        if (
-          membershipType ===
-            "board" &&
-          boardPosition
-        ) {
-
-          /*
-           * Check if this student already
-           * exists in the roster.
-           */
-
-          const existingPerson =
-            db
-              .prepare(`
-                SELECT id
-                FROM board_roster
-                WHERE LOWER(person_name)
-                  = LOWER(?)
-                LIMIT 1
-              `)
-              .get(personName) as
-              | { id: number }
-              | undefined;
-
-
-          if (
-            existingPerson
-          ) {
-
-            if (
-              columnExists(
-                "board_roster",
-                "display_order"
-              )
-            ) {
-
-              const displayOrder =
-                Number(
-                  body.displayOrder ??
-                  999
-                );
-
-              db.prepare(`
-                UPDATE board_roster
-                SET
-                  position = ?,
-                  person_name = ?,
-                  display_order = ?
-                WHERE id = ?
-              `).run(
-                boardPosition,
-                personName,
-                displayOrder,
-                existingPerson.id
-              );
-
-            } else {
-
-              db.prepare(`
-                UPDATE board_roster
-                SET
-                  position = ?,
-                  person_name = ?
-                WHERE id = ?
-              `).run(
-                boardPosition,
-                personName,
-                existingPerson.id
-              );
-            }
-
-          } else {
-
-            /*
-             * Prevent two students from being assigned
-             * the same board position.
-             */
-
-            const existingPosition =
-              db
-                .prepare(`
-                  SELECT id
-                  FROM board_roster
-                  WHERE LOWER(position)
-                    = LOWER(?)
-                  LIMIT 1
-                `)
-                .get(
-                  boardPosition
-                ) as
-                | { id: number }
-                | undefined;
-
-
-            if (
-              existingPosition
-            ) {
-
-              if (
-                columnExists(
-                  "board_roster",
-                  "display_order"
-                )
-              ) {
-
-                const displayOrder =
-                  Number(
-                    body.displayOrder ??
-                    999
-                  );
-
-                db.prepare(`
-                  UPDATE board_roster
-                  SET
-                    position = ?,
-                    person_name = ?,
-                    display_order = ?
-                  WHERE id = ?
-                `).run(
-                  boardPosition,
-                  personName,
-                  displayOrder,
-                  existingPosition.id
-                );
-
-              } else {
-
-                db.prepare(`
-                  UPDATE board_roster
-                  SET
-                    position = ?,
-                    person_name = ?
-                  WHERE id = ?
-                `).run(
-                  boardPosition,
-                  personName,
-                  existingPosition.id
-                );
-              }
-
-            } else {
-
-              if (
-                columnExists(
-                  "board_roster",
-                  "display_order"
-                )
-              ) {
-
-                const displayOrder =
-                  Number(
-                    body.displayOrder ??
-                    999
-                  );
-
-                db.prepare(`
-                  INSERT INTO board_roster
-                  (
-                    position,
-                    person_name,
-                    display_order
-                  )
-                  VALUES (?, ?, ?)
-                `).run(
-                  boardPosition,
-                  personName,
-                  displayOrder
-                );
-
-              } else {
-
-                db.prepare(`
-                  INSERT INTO board_roster
-                  (
-                    position,
-                    person_name
-                  )
-                  VALUES (?, ?)
-                `).run(
-                  boardPosition,
-                  personName
-                );
-              }
-            }
-          }
-
-        } else {
-
-          /*
-           * User changed from Board to Member.
-           * Remove their board roster row.
-           */
-
-          db.prepare(`
-            DELETE FROM board_roster
-            WHERE LOWER(person_name)
-              = LOWER(?)
-          `).run(
-            personName
-          );
-        }
+        /*
+         * Keep the users table consistent.
+         */
+        await client.query(
+          `
+          UPDATE users
+          SET
+            board_position = NULL,
+            board_order = NULL,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          `,
+          [id]
+        );
       }
-    }
 
+      await client.query(
+        "COMMIT"
+      );
+
+    } catch (updateError) {
+
+      await client.query(
+        "ROLLBACK"
+      );
+
+      console.error(
+        "ADMIN USER UPDATE ERROR:",
+        updateError
+      );
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            updateError instanceof Error
+              ? updateError.message
+              : "Failed to update member.",
+        },
+        {
+          status: 409,
+        }
+      );
+
+    } finally {
+      client.release();
+    }
 
     /* =====================================================
        RETURN UPDATED USER
     ===================================================== */
 
-    const refreshed =
-      db
-        .prepare(`
-          SELECT *
-          FROM users
-          WHERE id = ?
-          LIMIT 1
-        `)
-        .get(id) as UserRow;
-
-
-    const result =
-      formatUser(
-        refreshed
+    const refreshedResult =
+      await query<UserRow>(
+        `
+        SELECT *
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [id]
       );
 
+    const refreshed =
+      refreshedResult.rows[0];
 
-    /*
-     * Get the current board position.
-     */
-
-    if (
-      tableExists(
-        "board_roster"
-      )
-    ) {
-
-      if (
-        columnExists(
-          "board_roster",
-          "user_id"
-        )
-      ) {
-
-        const row =
-          db
-            .prepare(`
-              SELECT position
-              FROM board_roster
-              WHERE user_id = ?
-              LIMIT 1
-            `)
-            .get(id) as
-            | {
-                position?: string;
-              }
-            | undefined;
-
-        result.boardPosition =
-          row?.position ||
-          "";
-
-      } else {
-
-        const personName =
-          getStudentName(
-            refreshed
-          );
-
-        const row =
-          db
-            .prepare(`
-              SELECT position
-              FROM board_roster
-              WHERE LOWER(person_name)
-                = LOWER(?)
-              LIMIT 1
-            `)
-            .get(personName) as
-            | {
-                position?: string;
-              }
-            | undefined;
-
-        result.boardPosition =
-          row?.position ||
-          "";
-      }
+    if (!refreshed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Updated user could not be loaded.",
+        },
+        {
+          status: 500,
+        }
+      );
     }
 
+    const result =
+      formatUser(refreshed);
+
+    /* =====================================================
+       CURRENT BOARD POSITION
+    ===================================================== */
+
+    const boardPositionResult =
+      await query<{
+        position: string;
+      }>(
+        `
+        SELECT position
+        FROM board_roster
+        WHERE user_id = $1
+          AND active = 1
+        LIMIT 1
+        `,
+        [id]
+      );
+
+    result.boardPosition =
+      boardPositionResult.rows[0]
+        ?.position || "";
 
     return NextResponse.json({
       ok: true,
@@ -1451,7 +1160,7 @@ export async function POST(
         result,
 
       message:
-        "Member record updated successfully."
+        "Member record updated successfully.",
     });
 
   } catch (error) {
@@ -1468,10 +1177,10 @@ export async function POST(
         error:
           error instanceof Error
             ? error.message
-            : "Failed to update member."
+            : "Failed to update member.",
       },
       {
-        status: 500
+        status: 500,
       }
     );
   }

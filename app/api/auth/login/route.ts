@@ -1,22 +1,43 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import db from '@/lib/db';
+import { query } from '@/lib/postgres';
 import { sendEmail } from '@/lib/mailer';
 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-    const normalizedEmail = String(email || '').toLowerCase().trim();
+
+    const normalizedEmail = String(email || '')
+      .toLowerCase()
+      .trim();
+
     const submittedPassword = String(password || '');
-    const envAdminEmail = String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-    const envAdminPassword = String(process.env.ADMIN_PASSWORD || '');
 
-    let u = db.prepare('SELECT * FROM users WHERE email=?').get(normalizedEmail) as any;
+    const envAdminEmail = String(
+      process.env.ADMIN_EMAIL || ''
+    )
+      .toLowerCase()
+      .trim();
 
-    // ADMIN_EMAIL / ADMIN_PASSWORD are the documented admin credentials.
-    // Keep the database record synchronized so the admin can log in even if seed was not run
-    // or the env credentials changed after an earlier seed.
+    const envAdminPassword = String(
+      process.env.ADMIN_PASSWORD || ''
+    );
+
+    let result = await query(
+      `
+      SELECT *
+      FROM users
+      WHERE email = $1
+      LIMIT 1
+      `,
+      [normalizedEmail]
+    );
+
+    let u = result.rows[0] as any;
+
+    // ADMIN_EMAIL / ADMIN_PASSWORD are the documented
+    // admin credentials. Keep the database record synchronized.
     if (
       normalizedEmail &&
       normalizedEmail === envAdminEmail &&
@@ -24,60 +45,161 @@ export async function POST(req: Request) {
       submittedPassword === envAdminPassword &&
       (!u || u.role === 'admin')
     ) {
-      const passwordHash = await bcrypt.hash(envAdminPassword, 12);
+      const passwordHash = await bcrypt.hash(
+        envAdminPassword,
+        12
+      );
+
       if (!u) {
-        const info = db.prepare(`
-          INSERT INTO users(
-            full_name,surname,email,student_id,grade,class_name,parent_phone,address,
-            password_hash,role,status,membership_type
-          ) VALUES(?,?,?,?,?,?,?,?,?,'admin','approved','board')
-        `).run(
-          'Sumedha College Photography Club Admin',
-          'Admin',
-          normalizedEmail,
-          'ADMIN',
-          'Staff',
-          'Office',
-          '',
-          'Club Office',
-          passwordHash
+        const insertResult = await query(
+          `
+          INSERT INTO users (
+            full_name,
+            surname,
+            email,
+            student_id,
+            grade,
+            class_name,
+            parent_phone,
+            address,
+            password_hash,
+            role,
+            status,
+            membership_type
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, 'admin',
+            'approved', 'board'
+          )
+          RETURNING *
+          `,
+          [
+            'Sumedha College Photography Club Admin',
+            'Admin',
+            normalizedEmail,
+            'ADMIN',
+            'Staff',
+            'Office',
+            '',
+            'Club Office',
+            passwordHash,
+          ]
         );
-        u = db.prepare('SELECT * FROM users WHERE id=?').get(Number(info.lastInsertRowid)) as any;
+
+        u = insertResult.rows[0];
       } else {
-        db.prepare(`
+        await query(
+          `
           UPDATE users
-          SET password_hash=?,role='admin',status='approved',membership_type='board',updated_at=CURRENT_TIMESTAMP
-          WHERE id=?
-        `).run(passwordHash, u.id);
-        u = db.prepare('SELECT * FROM users WHERE id=?').get(u.id) as any;
+          SET
+            password_hash = $1,
+            role = 'admin',
+            status = 'approved',
+            membership_type = 'board',
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+          `,
+          [passwordHash, u.id]
+        );
+
+        const updatedResult = await query(
+          `
+          SELECT *
+          FROM users
+          WHERE id = $1
+          LIMIT 1
+          `,
+          [u.id]
+        );
+
+        u = updatedResult.rows[0];
       }
     }
 
-    if (!u || !(await bcrypt.compare(submittedPassword, u.password_hash || ''))) {
-      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
-    }
-    if (u.status === 'pending') {
-      return NextResponse.json({ error: 'Your registration is still waiting for admin approval.' }, { status: 403 });
-    }
-    if (u.status !== 'approved') {
-      return NextResponse.json({ error: 'Your account is not active.' }, { status: 403 });
+    if (
+      !u ||
+      !(await bcrypt.compare(
+        submittedPassword,
+        u.password_hash || ''
+      ))
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Invalid email or password.',
+        },
+        {
+          status: 401,
+        }
+      );
     }
 
-    const code = String(crypto.randomInt(100000, 1000000));
+    if (u.status === 'pending') {
+      return NextResponse.json(
+        {
+          error:
+            'Your registration is still waiting for admin approval.',
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    if (u.status !== 'approved') {
+      return NextResponse.json(
+        {
+          error: 'Your account is not active.',
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    const code = String(
+      crypto.randomInt(100000, 1000000)
+    );
+
     const hash = await bcrypt.hash(code, 10);
-    db.prepare(
-      'UPDATE users SET verification_hash=?,verification_expires=?,updated_at=CURRENT_TIMESTAMP WHERE id=?'
-    ).run(hash, Date.now() + 10 * 60 * 1000, u.id);
+
+    await query(
+      `
+      UPDATE users
+      SET
+        verification_hash = $1,
+        verification_expires = $2,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      `,
+      [
+        hash,
+        Date.now() + 10 * 60 * 1000,
+        u.id,
+      ]
+    );
 
     await sendEmail(
       u.email,
       'Your Sumedha Photography Club confirmation code',
-      `<h2 style="font-family:Arial">${code}</h2><p>This code expires in 10 minutes.</p>`
+      `<h2 style="font-family:Arial">${code}</h2>
+       <p>This code expires in 10 minutes.</p>`
     );
 
-    return NextResponse.json({ ok: true, email: u.email });
+    return NextResponse.json({
+      ok: true,
+      email: u.email,
+    });
   } catch (error) {
     console.error('[LOGIN ERROR]', error);
-    return NextResponse.json({ error: 'Login failed.' }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        error: 'Login failed.',
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }

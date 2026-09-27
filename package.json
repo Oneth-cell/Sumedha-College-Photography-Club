@@ -9,7 +9,11 @@
     "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1138.0",
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/lib-storage": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/busboy": "^1.5.4",
     "@types/node": "^22.14.0",
@@ -21,6 +25,7 @@
     "lucide-react": "^0.511.0",
     "next": "^16.3.6",
     "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "readable-stream": "^4.7.0",
@@ -28,6 +33,7 @@
   },
   "devDependencies": {
     "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "^19.1.9",
     "@types/unzipper": "^0.10.11",

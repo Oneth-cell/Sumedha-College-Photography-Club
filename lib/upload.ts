@@ -26,17 +26,22 @@ const videoExts = new Set([
   'webm',
 ]);
 
-export function extOf(name: string) {
+export function extOf(name: string): string {
   return (name.split('.').pop() || '').toLowerCase();
 }
 
 export function mediaKind(
   name: string
 ): 'image' | 'video' | null {
-  const e = extOf(name);
+  const ext = extOf(name);
 
-  if (imageExts.has(e)) return 'image';
-  if (videoExts.has(e)) return 'video';
+  if (imageExts.has(ext)) {
+    return 'image';
+  }
+
+  if (videoExts.has(ext)) {
+    return 'video';
+  }
 
   return null;
 }
@@ -85,17 +90,25 @@ export async function parseUpload(req: Request) {
     (resolve, reject) => {
       let filePipeline: Promise<void> | null = null;
 
-      bb.on('field', (name, value) => {
-        fields[name] = value;
-      });
+      bb.on(
+        'field',
+        (name: string, value: string) => {
+          fields[name] = value;
+        }
+      );
 
       bb.on(
         'file',
-        (_name, file, info) => {
+        (
+          _fieldName,
+          file,
+          info
+        ) => {
           fileName =
             info.filename || 'submission.zip';
 
-          const safeName = `${Date.now()}-${crypto.randomUUID()}.zip`;
+          const safeName =
+            `${Date.now()}-${crypto.randomUUID()}.zip`;
 
           filePath = path.join(
             tmpDir,
@@ -122,17 +135,20 @@ export async function parseUpload(req: Request) {
 
       bb.on('error', reject);
 
-      bb.on('finish', async () => {
-        try {
-          if (filePipeline) {
-            await filePipeline;
-          }
+      bb.on(
+        'finish',
+        async () => {
+          try {
+            if (filePipeline) {
+              await filePipeline;
+            }
 
-          resolve();
-        } catch (error) {
-          reject(error);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         }
-      });
+      );
     }
   );
 
@@ -302,28 +318,32 @@ export async function inspectAndExtractZip(
     originalName: string;
   }> = [];
 
-  for (const f of files) {
+  for (const file of files) {
     const ext =
-      extOf(f.path) || 'bin';
+      extOf(file.path) || 'bin';
 
     const outName =
       `${crypto.randomUUID()}.${ext}`;
 
     const outPath =
-      path.join(destRoot, outName);
+      path.join(
+        /* turbopackIgnore: true */
+        destRoot,
+        outName
+      );
 
     await pipeline(
-      f.entry.stream(),
+      file.entry.stream(),
       fs.createWriteStream(outPath)
     );
 
     extracted.push({
-      kind: f.kind,
+      kind: file.kind,
       relPath:
         `/uploads/media/${path.basename(destRoot)}/${outName}`,
-      size: f.size,
+      size: file.size,
       originalName:
-        path.basename(f.path),
+        path.basename(file.path),
     });
   }
 

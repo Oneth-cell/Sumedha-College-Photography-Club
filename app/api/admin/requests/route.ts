@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/postgres";
 import {
   sendApprovalEmail,
   sendRejectionEmail
@@ -8,7 +8,6 @@ import {
 export const dynamic = "force-dynamic";
 
 type UserRow = Record<string, any>;
-
 
 /* =========================================================
    GENERIC VALUE HELPER
@@ -33,7 +32,6 @@ function getValue(
 
   return fallback;
 }
-
 
 /* =========================================================
    STUDENT NAME
@@ -100,7 +98,6 @@ function getStudentName(
   return "Student";
 }
 
-
 /* =========================================================
    SURNAME
 ========================================================= */
@@ -119,7 +116,6 @@ function getSurname(
   );
 }
 
-
 /* =========================================================
    STUDENT ID
 ========================================================= */
@@ -136,7 +132,6 @@ function getStudentId(
     "Not provided"
   );
 }
-
 
 /* =========================================================
    GRADE
@@ -155,7 +150,6 @@ function getGrade(
     "Not provided"
   );
 }
-
 
 /* =========================================================
    CLASS
@@ -176,7 +170,6 @@ function getClassName(
   );
 }
 
-
 /* =========================================================
    PARENT / GUARDIAN PHONE
 ========================================================= */
@@ -196,7 +189,6 @@ function getParentPhone(
   );
 }
 
-
 /* =========================================================
    ADDRESS
 ========================================================= */
@@ -214,7 +206,6 @@ function getAddress(
   );
 }
 
-
 /* =========================================================
    PROFILE PICTURE
 ========================================================= */
@@ -225,6 +216,7 @@ function getProfilePicture(
   const value = getValue(
     user,
     [
+      "pfp_url",
       "pfp_path",
       "profile_picture",
       "profilePicture"
@@ -233,7 +225,6 @@ function getProfilePicture(
 
   return value || null;
 }
-
 
 /* =========================================================
    FORMAT STUDENT
@@ -337,35 +328,34 @@ function formatStudent(
   };
 }
 
-
 /* =========================================================
    GET PENDING REGISTRATION REQUESTS
 ========================================================= */
 
 export async function GET() {
   try {
-    const rows = db
-      .prepare(`
-        SELECT *
-        FROM users
-        WHERE LOWER(
-          COALESCE(status, '')
-        ) = 'pending'
-        ORDER BY id DESC
-      `)
-      .all() as UserRow[];
+    const result = await query<UserRow>(
+      `
+      SELECT *
+      FROM users
+      WHERE LOWER(
+        COALESCE(status, '')
+      ) = 'pending'
+      ORDER BY id DESC
+      `
+    );
+
+    const rows = result.rows;
 
     /*
-     * Only the safe student information returned by
+     * Only safe student information returned by
      * formatStudent() reaches the browser.
      *
      * password_hash is never returned.
      */
 
     const requests =
-      rows.map(
-        formatStudent
-      );
+      rows.map(formatStudent);
 
     return NextResponse.json({
       ok: true,
@@ -378,8 +368,7 @@ export async function GET() {
 
       data: requests,
 
-      count:
-        requests.length
+      count: requests.length
     });
 
   } catch (error) {
@@ -414,7 +403,6 @@ export async function GET() {
   }
 }
 
-
 /* =========================================================
    APPROVE / REJECT REGISTRATION
 ========================================================= */
@@ -446,7 +434,6 @@ export async function POST(
         ""
       ).trim();
 
-
     /* =====================================================
        VALIDATE ID
     ===================================================== */
@@ -467,7 +454,6 @@ export async function POST(
       );
     }
 
-
     /* =====================================================
        NORMALIZE ACTION
     ===================================================== */
@@ -479,7 +465,6 @@ export async function POST(
     const isReject =
       action === "reject" ||
       action === "rejected";
-
 
     if (
       !isApprove &&
@@ -497,23 +482,24 @@ export async function POST(
       );
     }
 
-
     /* =====================================================
        FIND USER
     ===================================================== */
 
+    const userResult = await query<UserRow>(
+      `
+      SELECT *
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id]
+    );
+
     const user =
-      db
-        .prepare(`
-          SELECT *
-          FROM users
-          WHERE id = ?
-          LIMIT 1
-        `)
-        .get(id) as
+      userResult.rows[0] as
         | UserRow
         | undefined;
-
 
     if (!user) {
       return NextResponse.json(
@@ -527,7 +513,6 @@ export async function POST(
         }
       );
     }
-
 
     /* =====================================================
        ONLY PENDING USERS CAN BE PROCESSED
@@ -557,14 +542,12 @@ export async function POST(
       );
     }
 
-
     /* =====================================================
        FORMAT SAFE STUDENT DATA
     ===================================================== */
 
     const student =
       formatStudent(user);
-
 
     /* =====================================================
        VALIDATE EMAIL
@@ -586,20 +569,22 @@ export async function POST(
       );
     }
 
-
     /* =====================================================
        APPROVE
     ===================================================== */
 
     if (isApprove) {
 
-      db.prepare(`
+      await query(
+        `
         UPDATE users
         SET
-          status = 'approved'
-        WHERE id = ?
-      `).run(id);
-
+          status = 'approved',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        `,
+        [id]
+      );
 
       /*
        * Send approval email.
@@ -645,8 +630,7 @@ export async function POST(
 
         /*
          * The student is already approved.
-         * Email failure should not undo the database
-         * approval.
+         * Email failure should not undo the database approval.
          */
 
         console.error(
@@ -654,7 +638,6 @@ export async function POST(
           emailError
         );
       }
-
 
       return NextResponse.json({
         ok: true,
@@ -671,7 +654,6 @@ export async function POST(
       });
     }
 
-
     /* =====================================================
        REJECT
     ===================================================== */
@@ -680,14 +662,16 @@ export async function POST(
       reason ||
       "Your membership request was not approved by the club administration.";
 
-
-    db.prepare(`
+    await query(
+      `
       UPDATE users
       SET
-        status = 'rejected'
-      WHERE id = ?
-    `).run(id);
-
+        status = 'rejected',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [id]
+    );
 
     /*
      * Send branded rejection email.
@@ -742,7 +726,6 @@ export async function POST(
         emailError
       );
     }
-
 
     return NextResponse.json({
       ok: true,

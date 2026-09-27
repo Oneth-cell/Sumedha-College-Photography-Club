@@ -25,14 +25,113 @@ export default function LmsClient({user,tasks,meetings,submissions,announcements
  async function completeTour(){setTour(false);await fetch('/api/onboarding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tour:'lms'})})}
  async function toggle(id:number,done:boolean){const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({taskId:id,done})});if(r.ok)setLocalTasks(ts=>ts.map(t=>t.id===id?{...t,done:done?1:0}:t))}
  async function upload(){
-  if(!file||!desc.trim()){setMsg('Choose a ZIP and add a description.');return}
-  const fd=new FormData();fd.append('file',file);fd.append('description',desc);if(taskId)fd.append('taskId',taskId);
-  setUploadBusy(true);setMsg('Uploading and validating ZIP…');
-  const r=await fetch('/api/submissions',{method:'POST',body:fd});const d=await r.json();setUploadBusy(false);
-  setMsg(r.ok?`Submission received. ${d.filesCount||0} media files are pending admin review.`:d.error||'Upload failed.');
-  if(r.ok){setFile(null);setDesc('');setTaskId('');const el=document.getElementById('submission-file') as HTMLInputElement|null;if(el)el.value=''}
- }
- async function loadChat(){const r=await fetch('/api/chat');if(r.ok){const d=await r.json();setMessages(d.messages||[])}}
+  if(!file || !desc.trim()){
+    setMsg('Choose a ZIP and add a description.');
+    return;
+  }
+
+  const MAX_ZIP_BYTES = 5 * 1024 * 1024 * 1024;
+
+  if(file.size > MAX_ZIP_BYTES){
+    setMsg('ZIP exceeds the 5 GB maximum.');
+    return;
+  }
+
+  setUploadBusy(true);
+
+  try{
+    setMsg('Preparing secure upload?');
+
+    const pRes = await fetch('/api/uploads/presign',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        filename:file.name,
+        contentType:file.type || 'application/zip',
+        folder:'submissions'
+      })
+    });
+
+    const p = await pRes.json();
+
+    if(!pRes.ok || !p.uploadUrl){
+      throw new Error(
+        p.error || 'Could not prepare the upload.'
+      );
+    }
+
+    setMsg('Uploading ZIP directly to cloud storage?');
+
+    const uploadRes = await fetch(
+      p.uploadUrl,
+      {
+        method:'PUT',
+        headers:{
+          'Content-Type':
+            file.type || 'application/zip'
+        },
+        body:file
+      }
+    );
+
+    if(!uploadRes.ok){
+      throw new Error('Cloud upload failed.');
+    }
+
+    setMsg(
+      'Upload complete. Validating ZIP and creating submission?'
+    );
+
+    const processRes = await fetch(
+      '/api/submissions/process',
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({
+          key:p.key,
+          description:desc.trim(),
+          taskId:taskId ? Number(taskId) : null
+        })
+      }
+    );
+
+    const d = await processRes.json();
+
+    if(!processRes.ok){
+      throw new Error(
+        d.error || 'Submission processing failed.'
+      );
+    }
+
+    setMsg(
+      `Submission received. ${d.filesCount || 0} media files are pending admin review.`
+    );
+
+    setFile(null);
+    setDesc('');
+    setTaskId('');
+
+    const el =
+      document.getElementById(
+        'submission-file'
+      ) as HTMLInputElement | null;
+
+    if(el){
+      el.value = '';
+    }
+
+  }catch(e:any){
+    setMsg(
+      e?.message || 'Upload failed.'
+    );
+  }finally{
+    setUploadBusy(false);
+  }
+} async function loadChat(){const r=await fetch('/api/chat');if(r.ok){const d=await r.json();setMessages(d.messages||[])}}
  async function sendChat(e:React.FormEvent){e.preventDefault();if(!chatText.trim())return;const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:chatText.trim()})});const d=await r.json();if(r.ok){setMessages(m=>[...m,d.message]);setChatText('')}}
  async function logout(){await fetch('/api/auth/logout',{method:'POST'});location.href='/' }
  function pickPfp(e:React.ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f)return;if(!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024){setMsg('Profile picture must be JPG, PNG or WEBP and 5 MB or less.');return}setPfp(URL.createObjectURL(f));setProfile((p:any)=>({...p,pfp_file:f}))}
