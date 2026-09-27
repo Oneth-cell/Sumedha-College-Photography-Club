@@ -1,22 +1,23 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import Nav from '@/components/Nav';
-import Footer from '@/components/Footer';
-import IntroLoader from '@/components/IntroLoader';
+
+import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'Sumedha College Photography Club',
-  description: 'Official digital home of the Sumedha College Photography Club'
+  title: "Sumedha College Photography Club",
+  description: "Official Sumedha College Photography Club",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <IntroLoader />
-        <Nav />
         {children}
-        <Footer />
+        <Analytics />
       </body>
     </html>
   );

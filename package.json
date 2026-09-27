@@ -17,6 +17,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/busboy": "^1.5.4",
     "@types/node": "^22.14.0",
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^13.0.3",
     "busboy": "^1.6.0",
