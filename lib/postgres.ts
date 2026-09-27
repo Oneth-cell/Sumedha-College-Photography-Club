@@ -1,9 +1,9 @@
-import { Pool, QueryResultRow } from "pg";
+import { Pool, QueryResultRow } from 'pg';
 
 const connectionString = process.env.SUPABASE_DB_URL;
 
 if (!connectionString) {
-  throw new Error("SUPABASE_DB_URL is missing");
+  throw new Error('SUPABASE_DB_URL is missing');
 }
 
 declare global {
@@ -18,8 +18,11 @@ const pool =
     ssl: {
       rejectUnauthorized: false,
     },
-    max: 2,
+
+    // Keep this very low for Vercel + Supabase Session Pooler
+    max: 1,
     min: 0,
+
     idleTimeoutMillis: 5000,
     connectionTimeoutMillis: 10000,
   });
