@@ -1,2 +1,49 @@
-import {getBoard} from '@/lib/data';import Reveal from '@/components/Reveal';
-export default async function Board(){const board=await getBoard();return <main className="page"><div className="container"><Reveal><div className="section-head"><div><div className="kicker">Executive committee</div><h2>The people<br/>behind the lens.</h2></div><p>Current board positions are managed by the club admin. Student accounts can show either Member or Board status.</p></div></Reveal><div className="grid-3">{(board as any[]).map((b:any,i:number)=><Reveal key={b.id} delay={i*.03}><article className="card card-pad" style={{minHeight:160}}><div className="kicker">{b.display_order<10?'0':''}{b.display_order}</div><h3>{b.position}</h3><p className="soft">{b.person_name}</p></article></Reveal>)}</div></div></main>}
+import { getBoard } from '@/lib/data';
+import Reveal from '@/components/Reveal';
+
+export default async function Board() {
+  const board = await getBoard();
+
+  return (
+    <main className="page">
+      <div className="container">
+        <Reveal>
+          <div className="section-head">
+            <div>
+              <div className="kicker">Executive committee</div>
+              <h2>
+                The people
+                <br />
+                behind the lens.
+              </h2>
+            </div>
+
+            <p>
+              Current board positions are managed by the club admin. Student
+              accounts can show either Member or Board status.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="grid-3">
+          {(board as any[]).map((b: any, i: number) => (
+            <Reveal key={b.id} delay={i * 0.03}>
+              <article
+                className="card card-pad"
+                style={{ minHeight: 160 }}
+              >
+                <div className="kicker">
+                  {String(i + 1).padStart(2, '0')}
+                </div>
+
+                <h3>{b.position}</h3>
+
+                <p className="soft">{b.person_name}</p>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
