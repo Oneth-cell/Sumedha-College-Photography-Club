@@ -31,7 +31,7 @@ type Tab =
   | 'chat'
   | 'board'
   | 'settings';
-
+    
 /* =========================================================
    API HELPER
 ========================================================= */
@@ -47,42 +47,79 @@ async function api(
 
   const contentType =
     r.headers.get('content-type') || '';
-
+  const isJson = /application\/(?:[a-z0-9.+-]+\+)?json/i.test(contentType);
+  const raw = await r.text().catch(() => '');
   let d: any = {};
 
-  if (
-    contentType.includes(
-      'application/json'
-    )
-  ) {
-    d =
-      await r.json().catch(
-        () => ({})
-      );
-  } else {
-    const text =
-      await r.text().catch(
-        () => ''
-      );
-
-    if (!r.ok) {
+  if (raw.trim() && isJson) {
+    try {
+      d = JSON.parse(raw);
+    } catch {
+      throw new Error(`Invalid JSON returned by ${url}.`);
+    }
+  } else if (!r.ok) {
+    throw new Error(
+      (raw.trim() && raw.length < 500 ? raw : '') ||
+      d?.error ||
+      `Request failed (${r.status}) for ${url}`
+    );
+  } else if (raw.trim()) {
+    // GET endpoints in this CRM are expected to return JSON. In particular,
+    // don't silently turn an HTML 404/login page into an empty comments list.
+    const method = (opts.method || 'GET').toUpperCase();
+    if (method === 'GET' || contentType.includes('text/html')) {
       throw new Error(
-        text ||
-          `Request failed (${r.status})`
+        `Expected JSON from ${url}, but received ${contentType || 'a non-JSON response'}. Check that the API route exists and returns JSON.`
       );
     }
-
-    d = {};
+    d = { message: raw };
   }
 
   if (!r.ok) {
     throw new Error(
-      d?.error ||
-        `Request failed (${r.status})`
+      d?.error || `Request failed (${r.status}) for ${url}`
     );
   }
 
   return d;
+}
+
+function normalizeComments(payload: any): any[] {
+  const candidates = [
+    payload?.comments,
+    payload?.data?.comments,
+    payload?.data,
+    payload?.items,
+    payload
+  ];
+  const rows = candidates.find(Array.isArray) ?? [];
+
+  return rows.map((comment: any) => ({
+    ...comment,
+    author:
+      comment.author ??
+      comment.authorName ??
+      comment.author_name ??
+      comment.userName ??
+      comment.user_name ??
+      comment.name ??
+      'Anonymous',
+    body:
+      comment.body ??
+      comment.content ??
+      comment.comment ??
+      comment.text ??
+      '',
+    mediaTitle:
+      comment.mediaTitle ??
+      comment.media_title ??
+      comment.media?.title ??
+      comment.photoTitle ??
+      'Gallery',
+    status: String(
+      comment.status ?? (comment.is_hidden ? 'hidden' : 'visible')
+    ).toLowerCase()
+  }));
 }
 
 export default function AdminCRM() {
@@ -217,7 +254,7 @@ export default function AdminCRM() {
     ],
     [
       'community',
-      'Community',
+      'Comments & Community',
       Globe
     ],
     [
@@ -251,6 +288,7 @@ export default function AdminCRM() {
         openChats: 0,
         students: 0,
         weeklyBest: 0
+      
       },
       requests: [],
       users: [],
@@ -343,9 +381,11 @@ export default function AdminCRM() {
         return r.value;
       }
 
-      failures.push(
-        endpoints[i][0]
-      );
+      const reason =
+        r.status === 'rejected'
+          ? (r.reason instanceof Error ? r.reason.message : String(r.reason))
+          : 'request failed';
+      failures.push(`${endpoints[i][0]} (${reason})`);
 
       return null;
     };
@@ -397,9 +437,7 @@ export default function AdminCRM() {
         events?.events ??
         defaults.events,
 
-      comments:
-        comments?.comments ??
-        defaults.comments,
+      comments: normalizeComments(comments),
 
       subs:
         subs?.subscribers ??
@@ -4442,6 +4480,7 @@ function Board({
 }
 
 
+
 /* =========================================================
    SETTINGS
 ========================================================= */
@@ -4457,10 +4496,20 @@ function SettingsPanel({
   setSetting: any;
   post: any;
 }) {
+  const whatsappUrl =
+    'https://whatsapp.com/channel/0029Vb95lv890x2ti5h2yr0E';
+
+  function useWhatsAppChannel() {
+    setSetting({
+      key: 'whatsapp_url',
+      value: whatsappUrl
+    });
+  }
+
   return (
     <div className="grid-2">
 
-      {/* FORM */}
+      {/* EDIT SETTINGS */}
 
       <section className="card card-pad">
 
@@ -4469,51 +4518,109 @@ function SettingsPanel({
         </div>
 
         <h3>
-          Social / public links.
+          Social and public links.
         </h3>
+
+        <p
+          className="soft"
+          style={{
+            fontSize: 10,
+            lineHeight: 1.7
+          }}
+        >
+          Instagram remains available. Use the
+          WhatsApp Channel setting to configure
+          the club's new community link.
+        </p>
 
         <div className="form">
 
+          <label
+            htmlFor="setting-key"
+            className="kicker"
+          >
+            Setting key
+          </label>
+
           <input
+            id="setting-key"
             className="input"
-            placeholder="Setting key"
-            value={
-              setting.key
-            }
+            placeholder="e.g. instagram_url"
+            value={setting.key}
             onChange={e =>
               setSetting({
                 ...setting,
-                key:
-                  e.target.value
+                key: e.target.value
               })
             }
           />
 
+          <label
+            htmlFor="setting-value"
+            className="kicker"
+          >
+            Setting value
+          </label>
+
           <input
+            id="setting-value"
             className="input"
-            placeholder="Value"
-            value={
-              setting.value
-            }
+            placeholder="Enter URL or setting value"
+            value={setting.value}
             onChange={e =>
               setSetting({
                 ...setting,
-                value:
-                  e.target.value
+                value: e.target.value
               })
             }
           />
 
           <button
             type="button"
+            className="btn"
+            onClick={useWhatsAppChannel}
+          >
+            <MessageCircle size={14} />
+            Use WhatsApp Channel
+          </button>
+
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="tiny-btn"
+          >
+            Open WhatsApp Channel ↗
+          </a>
+
+          <button
+            type="button"
             className="btn primary"
-            onClick={() =>
+            onClick={() => {
+              const key = String(
+                setting.key || ''
+              ).trim();
+
+              const value = String(
+                setting.value || ''
+              ).trim();
+
+              if (!key || !value) {
+                window.alert(
+                  'Please enter both a setting key and a value.'
+                );
+                return;
+              }
+
               post(
                 '/api/admin/settings',
-                setting,
+                {
+                  key,
+                  value
+                },
                 'Setting saved.'
-              )
-            }
+              );
+            }}
           >
             Save setting
           </button>
@@ -4522,20 +4629,21 @@ function SettingsPanel({
 
         <div className="divider" />
 
+        <div className="kicker">
+          Supported setting keys
+        </div>
+
         <p
           className="soft"
           style={{
-            fontSize:
-              9
+            fontSize: 9,
+            lineHeight: 1.9,
+            overflowWrap: 'anywhere'
           }}
         >
-          Suggested keys:
-          instagram_url,
-          facebook_url,
-          youtube_url,
-          tiktok_url,
-          contact_email,
-          copyright_text.
+          instagram_url, facebook_url,
+          youtube_url, whatsapp_url,
+          contact_email, copyright_text
         </p>
 
       </section>
@@ -4552,54 +4660,63 @@ function SettingsPanel({
           Saved values.
         </h3>
 
-        {settings.map(
-          (s: any) => (
+        {settings.map((s: any) => (
+          <div
+            className="admin-row"
+            key={s.key}
+          >
+
             <div
-              className="admin-row"
-              key={
-                s.key
-              }
+              style={{
+                minWidth: 0,
+                flex: 1
+              }}
             >
 
-              <div>
+              <strong
+                style={{
+                  fontSize: 9
+                }}
+              >
+                {s.key}
+              </strong>
 
-                <strong
-                  style={{
-                    fontSize:
-                      9
-                  }}
-                >
-                  {
-                    s.key
-                  }
-                </strong>
-
-                <div
-                  className="soft"
-                  style={{
-                    fontSize:
-                      9,
-                    wordBreak:
-                      'break-all'
-                  }}
-                >
-                  {
-                    s.value
-                  }
-                </div>
-
+              <div
+                className="soft"
+                style={{
+                  fontSize: 9,
+                  wordBreak: 'break-all',
+                  marginTop: 5
+                }}
+              >
+                {s.value}
               </div>
 
             </div>
-          )
-        )}
+
+            <button
+              type="button"
+              className="tiny-btn"
+              onClick={() => {
+                setSetting({
+                  key: s.key,
+                  value: String(
+                    s.value ?? ''
+                  )
+                });
+              }}
+            >
+              Edit
+            </button>
+
+          </div>
+        ))}
 
         {!settings.length && (
           <p
             className="soft"
             style={{
-              fontSize:
-                10
+              fontSize: 10
             }}
           >
             No settings saved yet.
