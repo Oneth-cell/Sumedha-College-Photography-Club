@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { query } from '@/lib/postgres';
@@ -31,9 +32,7 @@ async function removePublicUpload(
   }
 
   await fs
-    .rm(target, {
-      force: true,
-    })
+    .rm(target, { force: true })
     .catch(() => {});
 }
 
@@ -87,14 +86,12 @@ export async function GET() {
       submissions: submissionsResult.rows,
       files: filesResult.rows,
     });
-  } catch {
+  } catch (error) {
+    console.error('[ADMIN MEDIA GET ERROR]', error);
+
     return NextResponse.json(
-      {
-        error: 'Unauthorized',
-      },
-      {
-        status: 401,
-      }
+      { error: 'Could not load admin media.' },
+      { status: 500 }
     );
   }
 }
@@ -108,7 +105,12 @@ export async function POST(req: Request) {
       submissionId,
       mediaId,
       weeklyBest,
+      status: requestedStatus,
     } = await req.json();
+
+    /*
+     * APPROVE OR REJECT AN ENTIRE SUBMISSION
+     */
 
     if (
       action === 'approve_submission' ||
@@ -116,14 +118,10 @@ export async function POST(req: Request) {
     ) {
       const id = Number(submissionId);
 
-      if (!Number.isFinite(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return NextResponse.json(
-          {
-            error: 'Invalid submission ID.',
-          },
-          {
-            status: 400,
-          }
+          { error: 'Invalid submission ID.' },
+          { status: 400 }
         );
       }
 
@@ -132,7 +130,7 @@ export async function POST(req: Request) {
           ? 'approved'
           : 'rejected';
 
-      await query(
+      const submissionResult = await query(
         `
         UPDATE submissions
         SET
@@ -140,24 +138,30 @@ export async function POST(req: Request) {
           reviewed_by = $2,
           reviewed_at = CURRENT_TIMESTAMP
         WHERE id = $3
+        RETURNING id
         `,
-        [
-          status,
-          admin.userId,
-          id,
-        ]
+        [status, admin.userId, id]
       );
+
+      if (!submissionResult.rows.length) {
+        return NextResponse.json(
+          { error: 'Submission not found.' },
+          { status: 404 }
+        );
+      }
 
       await query(
         `
         UPDATE media_items
-        SET status = $1
+        SET
+          status = $1,
+          weekly_best = CASE
+            WHEN $1 = 'rejected' THEN 0
+            ELSE weekly_best
+          END
         WHERE submission_id = $2
         `,
-        [
-          status,
-          id,
-        ]
+        [status, id]
       );
 
       await query(
@@ -180,20 +184,21 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         ok: true,
+        status,
       });
     }
+
+    /*
+     * DELETE A MEDIA FILE
+     */
 
     if (action === 'delete_media') {
       const id = Number(mediaId);
 
-      if (!Number.isFinite(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return NextResponse.json(
-          {
-            error: 'Invalid media ID.',
-          },
-          {
-            status: 400,
-          }
+          { error: 'Invalid media ID.' },
+          { status: 400 }
         );
       }
 
@@ -211,12 +216,8 @@ export async function POST(req: Request) {
 
       if (!media) {
         return NextResponse.json(
-          {
-            error: 'Media not found.',
-          },
-          {
-            status: 404,
-          }
+          { error: 'Media not found.' },
+          { status: 404 }
         );
       }
 
@@ -236,65 +237,37 @@ export async function POST(req: Request) {
           ? null
           : Number(media.submission_id);
 
-      /*
-       * SQLite previously handled these relationships
-       * through ON DELETE CASCADE. The PostgreSQL schema
-       * does not currently have those foreign keys, so
-       * clean up dependent rows explicitly.
-       */
       await query(
-        `
-        DELETE FROM media_variants
-        WHERE media_id = $1
-        `,
+        `DELETE FROM media_variants WHERE media_id = $1`,
         [id]
       );
 
       await query(
-        `
-        DELETE FROM media_likes
-        WHERE media_id = $1
-        `,
+        `DELETE FROM media_likes WHERE media_id = $1`,
         [id]
       );
 
       await query(
-        `
-        DELETE FROM media_ratings
-        WHERE media_id = $1
-        `,
+        `DELETE FROM media_ratings WHERE media_id = $1`,
         [id]
       );
 
       await query(
-        `
-        DELETE FROM media_comments
-        WHERE media_id = $1
-        `,
+        `DELETE FROM media_comments WHERE media_id = $1`,
         [id]
       );
 
       await query(
-        `
-        DELETE FROM media_items
-        WHERE id = $1
-        `,
+        `DELETE FROM media_items WHERE id = $1`,
         [id]
       );
 
       for (const variant of variantsResult.rows) {
-        await removePublicUpload(
-          variant.media_url
-        );
+        await removePublicUpload(variant.media_url);
       }
 
-      await removePublicUpload(
-        media.media_url
-      );
-
-      await removePublicUpload(
-        media.poster_url
-      );
+      await removePublicUpload(media.media_url);
+      await removePublicUpload(media.poster_url);
 
       await query(
         `
@@ -312,13 +285,15 @@ export async function POST(req: Request) {
           'media_delete',
           'media',
           id,
-          JSON.stringify({
-            title: media.title,
-          }),
+          JSON.stringify({ title: media.title }),
         ]
       );
 
-      if (submissionIdValue) {
+      if (
+        submissionIdValue !== null &&
+        Number.isSafeInteger(submissionIdValue) &&
+        submissionIdValue > 0
+      ) {
         const remainingResult = await query<{
           count: string;
         }>(
@@ -330,40 +305,32 @@ export async function POST(req: Request) {
           [submissionIdValue]
         );
 
-        const remaining =
-          Number(
-            remainingResult.rows[0]?.count || 0
-          );
+        const remaining = Number(
+          remainingResult.rows[0]?.count || 0
+        );
 
         if (remaining === 0) {
-          const submissionResult =
-            await query<{
-              zip_path: string;
-            }>(
-              `
-              SELECT zip_path
-              FROM submissions
-              WHERE id = $1
-              LIMIT 1
-              `,
-              [submissionIdValue]
-            );
-
-          const submission =
-            submissionResult.rows[0];
-
-          await query(
+          const submissionResult = await query<{
+            zip_path: string;
+          }>(
             `
-            DELETE FROM submissions
+            SELECT zip_path
+            FROM submissions
             WHERE id = $1
+            LIMIT 1
             `,
             [submissionIdValue]
           );
 
+          const submission = submissionResult.rows[0];
+
+          await query(
+            `DELETE FROM submissions WHERE id = $1`,
+            [submissionIdValue]
+          );
+
           if (submission) {
-            await removePublicUpload(
-              submission.zip_path
-            );
+            await removePublicUpload(submission.zip_path);
           }
 
           const mediaDir = path.join(
@@ -380,6 +347,12 @@ export async function POST(req: Request) {
               force: true,
             })
             .catch(() => {});
+        } else {
+          /*
+           * Keep the parent submission status consistent
+           * with any files that remain after deletion.
+           */
+          await syncSubmissionStatus(submissionIdValue, admin.userId);
         }
       }
 
@@ -388,58 +361,95 @@ export async function POST(req: Request) {
       });
     }
 
+    /*
+     * APPROVE OR REJECT AN INDIVIDUAL PHOTO / VIDEO
+     *
+     * The client sends:
+     * { action: 'media_status', mediaId, status: 'approved' }
+     * or
+     * { action: 'media_status', mediaId, status: 'rejected' }
+     */
+
     if (action === 'media_status') {
       const id = Number(mediaId);
+      const status = String(requestedStatus || '').toLowerCase();
 
-      if (!Number.isFinite(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return NextResponse.json(
-          {
-            error: 'Invalid media ID.',
-          },
-          {
-            status: 400,
-          }
+          { error: 'Invalid media ID.' },
+          { status: 400 }
         );
       }
 
-      const status =
-        weeklyBest === true
-          ? 'approved'
-          : String(weeklyBest) === 'reject'
-            ? 'rejected'
-            : 'approved';
+      if (status !== 'approved' && status !== 'rejected') {
+        return NextResponse.json(
+          {
+            error: 'Status must be approved or rejected.',
+          },
+          { status: 400 }
+        );
+      }
 
-      await query(
+      const mediaResult = await query<{
+        submission_id: number | string | null;
+      }>(
         `
         UPDATE media_items
         SET
           status = $1,
-          weekly_best = $2
-        WHERE id = $3
+          weekly_best = CASE
+            WHEN $1 = 'rejected' THEN 0
+            ELSE weekly_best
+          END
+        WHERE id = $2
+        RETURNING submission_id
         `,
-        [
-          status,
-          weeklyBest === true ? 1 : 0,
-          id,
-        ]
+        [status, id]
       );
+
+      const media = mediaResult.rows[0];
+
+      if (!media) {
+        return NextResponse.json(
+          { error: 'Media not found.' },
+          { status: 404 }
+        );
+      }
+
+      let submissionStatus: string | null = null;
+
+      if (media.submission_id != null) {
+        const parentId = Number(media.submission_id);
+
+        if (
+          Number.isSafeInteger(parentId) &&
+          parentId > 0
+        ) {
+          submissionStatus = await syncSubmissionStatus(
+            parentId,
+            admin.userId
+          );
+        }
+      }
 
       return NextResponse.json({
         ok: true,
+        status,
+        submissionStatus,
       });
     }
+
+    /*
+     * SET OR REMOVE WEEKLY BEST
+     */
 
     if (action === 'weekly_best') {
       const id = Number(mediaId);
 
-      if (!Number.isFinite(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return NextResponse.json(
-          {
-            error: 'Invalid media ID.',
-          },
-          {
-            status: 400,
-          }
+          { error: 'Invalid media ID.' },
+          { status: 400 }
         );
       }
 
@@ -460,12 +470,17 @@ export async function POST(req: Request) {
 
       if (!media) {
         return NextResponse.json(
+          { error: 'Media not found.' },
+          { status: 404 }
+        );
+      }
+
+      if (weeklyBest && media.status !== 'approved') {
+        return NextResponse.json(
           {
-            error: 'Media not found.',
+            error: 'Only approved media can be Weekly Best.',
           },
-          {
-            status: 404,
-          }
+          { status: 400 }
         );
       }
 
@@ -485,10 +500,7 @@ export async function POST(req: Request) {
         SET weekly_best = $1
         WHERE id = $2
         `,
-        [
-          weeklyBest ? 1 : 0,
-          id,
-        ]
+        [weeklyBest ? 1 : 0, id]
       );
 
       await query(
@@ -515,32 +527,101 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         ok: true,
+        weeklyBest: Boolean(weeklyBest),
       });
     }
 
     return NextResponse.json(
-      {
-        error: 'Unknown action.',
-      },
-      {
-        status: 400,
-      }
+      { error: 'Unknown action.' },
+      { status: 400 }
     );
   } catch (error: any) {
-    console.error(
-      '[ADMIN MEDIA ERROR]',
-      error
-    );
+    console.error('[ADMIN MEDIA ERROR]', error);
 
     return NextResponse.json(
       {
-        error:
-          error?.message ||
-          'Unauthorized',
+        error: error?.message || 'Could not process media action.',
       },
-      {
-        status: 401,
-      }
+      { status: 500 }
     );
   }
+}
+
+/*
+ * Recalculate a parent submission from all its remaining media.
+ *
+ * Rules:
+ * - Any unreviewed file -> pending
+ * - No pending files, at least one rejected file -> rejected
+ * - All files approved -> approved
+ */
+async function syncSubmissionStatus(
+  submissionId: number,
+  adminUserId: number | string
+): Promise<string> {
+  const countsResult = await query<{
+    total_count: number;
+    pending_count: number;
+    rejected_count: number;
+  }>(
+    `
+    SELECT
+      COUNT(*)::int AS total_count,
+      COUNT(*) FILTER (
+        WHERE LOWER(COALESCE(status, 'pending'))
+          NOT IN ('approved', 'rejected')
+      )::int AS pending_count,
+      COUNT(*) FILTER (
+        WHERE LOWER(COALESCE(status, '')) = 'rejected'
+      )::int AS rejected_count
+    FROM media_items
+    WHERE submission_id = $1
+    `,
+    [submissionId]
+  );
+
+  const counts = countsResult.rows[0];
+
+  const totalCount = Number(counts?.total_count ?? 0);
+  const pendingCount = Number(counts?.pending_count ?? 0);
+  const rejectedCount = Number(counts?.rejected_count ?? 0);
+
+  /*
+   * No media files remain. The caller may be deleting the
+   * last file, so do not label this as approved.
+   */
+  if (totalCount === 0) {
+    return 'pending';
+  }
+
+  const submissionStatus =
+    pendingCount > 0
+      ? 'pending'
+      : rejectedCount > 0
+        ? 'rejected'
+        : 'approved';
+
+  await query(
+    `
+    UPDATE submissions
+    SET
+      status = $1,
+      reviewed_by = CASE
+        WHEN $1 = 'pending' THEN NULL
+        ELSE $2
+      END,
+      reviewed_at = CASE
+        WHEN $1 = 'pending' THEN NULL
+        ELSE CURRENT_TIMESTAMP
+      END
+    WHERE id = $3
+    `,
+    [
+      submissionStatus,
+      adminUserId,
+      submissionId,
+    ]
+  );
+
+  return submissionStatus;
 }
